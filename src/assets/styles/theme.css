@@ -1,0 +1,57 @@
+:root {
+  --page-blue-top: #8db4ff;
+  --page-blue-bottom: #dceafe;
+  --nav-blue: #3664b9;
+  --nav-blue-soft: #4473ca;
+  --text-main: #2c4d86;
+  --text-soft: #637da4;
+  --border-soft: #d8e4f7;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.62);
+  --shadow-soft: 0 10px 30px rgba(77, 118, 192, 0.18);
+  --green-main: #39a977;
+  --green-soft: #6bc36d;
+  --blue-btn: #5f90ef;
+  --blue-btn-deep: #4b7dd9;
+  --teal-main: #48a5b8;
+  --danger: #df6f6f;
+  --warning: #e0a72f;
+  --success: #58a862;
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+.page-container {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--page-blue-top) 0%, var(--page-blue-bottom) 100%);
+}
+
+.page-shell {
+  position: relative;
+  z-index: 1;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page-background {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.12)),
+    url('https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1600&q=80') center/cover;
+  opacity: 0.16;
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    padding: 14px;
+  }
+}
