@@ -1,4 +1,18 @@
 <template>
+  <header class="app-header glass-card">
+    <div class="brand">
+      <div class="brand-icon">🚲</div>
+      <span class="brand-text">SmartCycle Navigator</span>
+    </div>
+
+    <nav class="nav-links">
+      <a href="#" class="active">Home</a>
+      <a href="#">Map</a>
+      <a href="#">Routes</a>
+      <a href="#">Safety Insights</a>
+    </nav>
+
+    <div class="header-actions">
       <button class="icon-btn" type="button">🔔</button>
       <div class="avatar">👨</div>
     </div>

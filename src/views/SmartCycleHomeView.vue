@@ -1,9 +1,42 @@
 <template>
+  <div class="page-container">
+    <div class="page-background"></div>
+
+    <div class="page-shell">
+      <AppHeader />
+
+      <section class="hero-section">
+        <h1 class="hero-title">SmartCycle Navigator</h1>
+        <p class="hero-subtitle">
+          A Smart Cycling Safety and Decision Support System<br />
+          Using Open Mobility Data
+        </p>
+      </section>
+
+      <RouteSearchCard
+        v-model:currentLocation="currentLocation"
+        v-model:destination="destination"
+        :loading="loading"
+        @submit="loadRoutes"
+      />
+
+      <p v-if="error" class="error-text">{{ error }}</p>
+
+      <RecommendedRouteCard :route="recommendedRoute" />
+
+      <RouteMapPanel :route="selectedRoute" />
+
+      <RouteCompareSection
+        :routes="routes"
+        :selected-route-id="selectedRouteId"
+        @view-route="selectRoute"
+        @compare-all="handleCompareAll"
+      />
+
       <div class="bike-illustration">🚴‍♂️</div>
     </div>
   </div>
 </template>
-
 <script setup>
 import AppHeader from '../components/layout/AppHeader.vue'
 import RouteSearchCard from '../components/search/RouteSearchCard.vue'

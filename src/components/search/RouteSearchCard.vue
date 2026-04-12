@@ -1,4 +1,16 @@
 <template>
+  <BaseCard class="search-card">
+    <div class="input-list">
+      <div class="field-row">
+        <span class="field-icon">📍</span>
+        <input
+          :value="currentLocation"
+          type="text"
+          placeholder="Current Location"
+          @input="$emit('update:currentLocation', $event.target.value)"
+        />
+        <span class="field-arrow">⌄</span>
+      </div>
 
       <div class="field-row">
         <span class="field-icon">📍</span>
