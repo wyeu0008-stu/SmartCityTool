@@ -6,13 +6,11 @@ on:
   push:
     branches: [ "main" ]
 
-permissions:
-  contents: read
-  id-token: write
-
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -33,7 +31,7 @@ jobs:
 
       - name: Install dependencies
         if: ${{ hashFiles('package.json') != '' }}
-        run: npm ci
+        run: npm install
 
       - name: Run tests
         if: ${{ hashFiles('package.json') != '' }}
@@ -55,6 +53,9 @@ jobs:
     if: github.event_name == 'push'
     needs: scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -86,6 +87,8 @@ jobs:
     needs: push-image
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
 
     steps:
       - name: Setup SSH
