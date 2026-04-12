@@ -11,40 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-
+  
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set image tag
-        id: meta
-        run: echo "image_tag=${GITHUB_SHA}" >> $GITHUB_OUTPUT
-
+  
       - name: Set up Node
-        if: ${{ hashFiles('package.json') != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
+  
       - name: Install dependencies
-        if: ${{ hashFiles('package.json') != '' }}
         run: npm install
-
-      - name: Run tests
-        if: ${{ hashFiles('package.json') != '' }}
-        run: npm test --if-present
-
+  
+      - name: Run tests with coverage
+        run: npm run coverage
+  
       - name: SonarQube Cloud Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
+  
       - name: Check Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1.2.0
         timeout-minutes: 10
