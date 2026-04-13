@@ -5,27 +5,49 @@
       <span class="map-tag">Ready for Leaflet / Mapbox</span>
     </div>
 
-    <div class="map-placeholder">
-      <div class="map-label">Map Module Placeholder</div>
-      <p>
-        Selected route: <strong>{{ route?.name || 'None' }}</strong>
-      </p>
-      <p>
-        Later you can replace this component with Leaflet or Mapbox,
-        then draw polylines, markers, and safety layers.
-      </p>
-    </div>
+    <div id="map" class="real-map"></div>
   </BaseCard>
 </template>
 
 <script setup>
 import BaseCard from '../common/BaseCard.vue'
+import { onMounted } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+let map
+let routeLayer
+
+function drawRoute(coords) {
+  if (routeLayer) {
+    map.removeLayer(routeLayer)
+  }
+  routeLayer = L.polyline(coords, {
+    color: 'green',
+    weight: 5
+  }).addTo(map)
+}
 
 defineProps({
   route: {
     type: Object,
     default: null
   }
+})
+
+onMounted(() => {
+  map = L.map('map').setView([-37.8136, 144.9631], 13)
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map)
+
+  // default route
+  drawRoute([
+    [-37.8136, 144.9631],
+    [-37.8150, 144.9700],
+    [-37.8200, 144.9750]
+  ])
 })
 </script>
 
@@ -77,5 +99,11 @@ defineProps({
   font-weight: 800;
   margin-bottom: 10px;
   color: #35588e;
+}
+
+.real-map {
+  height: 320px;
+  border-radius: 16px;
+  overflow: hidden;
 }
 </style>
