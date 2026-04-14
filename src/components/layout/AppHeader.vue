@@ -24,9 +24,9 @@
   align-items: center;
   justify-content: space-between;
 
-  width: 100vw;                 /* 🔥 force full viewport width */
+  width: 100vw;                
   max-width: 100vw;
-  margin-left: calc(50% - 50vw); /* 🔥 break out of centered container */
+  margin-left: calc(50% - 50vw); 
   margin-right: calc(50% - 50vw);
 
   padding: 18px 60px;
@@ -51,9 +51,10 @@
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 64px; /* 🔥 even more spacing */
+  gap: 64px;
   flex: 1;
-  justify-content: center; /* 🔥 center the nav */
+  justify-content: center;
+  margin-left: -200px;   /* shift nav slightly to the left */
 }
 
 .nav-links a {

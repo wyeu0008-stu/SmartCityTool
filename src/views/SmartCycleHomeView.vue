@@ -7,6 +7,7 @@
       <!-- HERO SECTION (new layout) -->
       <section class="hero">
         <div class="hero-left">
+          <p class="hero-tag">SMART CYCLING SAFETY SYSTEM</p>
           <h1>
             Cycle with <span>Safety</span>
           </h1>
@@ -21,51 +22,26 @@
         </div>
 
         <div class="hero-right">
-          <img src="/public/matthew-alexander-kfH1RPOoM1w-unsplash.jpg" alt="hero" />
+          <img src="/public/tomi-vadasz-SBKJ47obEHY-unsplash.jpg" alt="hero" />
         </div>
       </section>
 
       <!-- ORIGINAL FEATURES BELOW -->
-      <RouteSearchCard
-        v-model:currentLocation="currentLocation"
-        v-model:destination="destination"
-        :loading="loading"
-        @submit="loadRoutes"
-      />
-
-      <p v-if="error" class="error-text">{{ error }}</p>
-
-      <RecommendedRouteCard :route="recommendedRoute" />
 
       <RouteMapPanel :route="selectedRoute" />
 
-      <RouteCompareSection
-        :routes="routes"
-        :selected-route-id="selectedRouteId"
-        @view-route="selectRoute"
-        @compare-all="handleCompareAll"
-      />
     </div>
   </div>
 </template>
 <script setup>
 import AppHeader from '../components/layout/AppHeader.vue'
-import RouteSearchCard from '../components/search/RouteSearchCard.vue'
-import RecommendedRouteCard from '../components/route/RecommendedRouteCard.vue'
-import RouteCompareSection from '../components/route/RouteCompareSection.vue'
 import RouteMapPanel from '../components/map/RouteMapPanel.vue'
 import { useRoutes } from '../composables/useRoutes'
 
 const {
-  currentLocation,
-  destination,
   routes,
-  loading,
-  error,
-  recommendedRoute,
   selectedRoute,
   selectedRouteId,
-  loadRoutes,
   selectRoute
 } = useRoutes()
 
@@ -76,12 +52,12 @@ function handleCompareAll() {
 
 <style scoped>
 .page-container {
-  background-color: #ffffff;
+  background: linear-gradient(180deg, #f4f7fb 0%, #eaf1f8 100%);
   min-height: 100vh;
 }
 
 .page-shell {
-  background-color: #ffffff;
+  background-color: transparent;
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
@@ -118,8 +94,15 @@ function handleCompareAll() {
   flex: 1;
 }
 
+.hero-tag {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #6b7a8c;
+  margin-bottom: 10px;
+}
+
 .hero-left h1 {
-  font-size: 48px;
+  font-size: 64px;
   font-weight: 800;
   color: #1f2d3d;
 }
@@ -143,23 +126,37 @@ function handleCompareAll() {
 .btn-primary {
   background: #2f6f4f;
   color: white;
-  padding: 12px 20px;
+  padding: 14px 28px;
   border-radius: 10px;
   border: none;
   cursor: pointer;
+  font-size: 16px;
+  transition: transform 0.2s ease;
 }
 
-.btn-secondary {
-  background: #eef3f8;
-  padding: 12px 20px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
+.btn-primary:hover {
+  transform: translateY(-2px);
 }
+
+ .btn-secondary {
+   background: #2f6f4f;
+   color: white;
+   padding: 14px 28px;
+   border-radius: 10px;
+   border: none;
+   cursor: pointer;
+   font-size: 16px;
+   transition: transform 0.2s ease, background 0.2s ease;
+ }
+
+ .btn-secondary:hover {
+   transform: translateY(-2px);
+   background: #275c41;
+ }
 
 .hero-right img {
   width: 100%;
-  max-width: 380px;
+  max-width: 480px;
   border-radius: 20px;
   transform: rotate(2deg);
 }
