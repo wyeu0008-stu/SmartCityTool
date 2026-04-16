@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers.data import router as data_router
+from app.routers.db_routes import router as data_router
 
 app = FastAPI(title="SmartCycle Database API")
 
