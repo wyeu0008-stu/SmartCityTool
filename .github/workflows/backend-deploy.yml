@@ -39,7 +39,7 @@ jobs:
         DB_PASSWORD: test_password
         DB_DRIVER: ODBC Driver 18 for SQL Server
       run: |
-        python -c "from main import app; print('Backend import check passed')"
+        python -c "from app.main import app; print('Backend import check passed')"
 
   push-image:
     if: github.event_name == 'push'
