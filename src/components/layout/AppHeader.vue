@@ -1,20 +1,20 @@
 <template>
-  <header class="app-header glass-card">
+  <header class="app-header">
     <div class="brand">
-      <div class="brand-icon">🚲</div>
+      <img src="/cycling.png" alt="logo" class="logo" />
       <span class="brand-text">SmartCycle Navigator</span>
     </div>
 
+
     <nav class="nav-links">
-      <a href="#" class="active">Home</a>
-      <a href="#">Map</a>
-      <a href="#">Routes</a>
-      <a href="#">Safety Insights</a>
+      <router-link to="/" active-class="active">Home</router-link>
+      <router-link to="/map" active-class="active">Map</router-link>
+      <router-link to="/routes" active-class="active">Routes</router-link>
+      <router-link to="/insights" active-class="active">Safety Insights</router-link>
     </nav>
 
     <div class="header-actions">
-      <button class="icon-btn" type="button">🔔</button>
-      <div class="avatar">👨</div>
+      <button class="signin-btn">Sign In</button>
     </div>
   </header>
 </template>
@@ -24,78 +24,83 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(56, 102, 185, 0.95), rgba(63, 115, 198, 0.88));
-  color: white;
+
+  width: 100vw;                
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw); 
+  margin-right: calc(50% - 50vw);
+
+  padding: 18px 60px;
+
+  background: #ffffff;
+  border-bottom: 1px solid #e6edf5;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 210px;
+  margin-right: 80px;
 }
 
 .brand-text {
   font-weight: 700;
+  font-size: 1.25rem;
+  color: #1f2d3d;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 64px;
+  flex: 1;
+  justify-content: center;
+  margin-left: -160px;   /* shift nav slightly to the left */
 }
 
 .nav-links a {
   text-decoration: none;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 0.92rem;
+  color: #5a6b7b;
+  font-size: 1.05rem;
+  position: relative;
 }
 
 .nav-links a.active {
-  color: white;
+  color: #2f6f4f;
   font-weight: 700;
+}
+
+.nav-links a.active::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #2f6f4f;
+  border-radius: 2px;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  margin-left: 80px;
 }
 
-.icon-btn,
-.avatar {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
+.signin-btn {
+  border: 1px solid #d0d7de;
+  background: #ffffff;
+  padding: 10px 18px;
+  border-radius: 22px;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
-.icon-btn {
-  border: none;
-  background: rgba(255, 255, 255, 0.16);
-  color: white;
-}
-
-.avatar {
-  background: rgba(255, 255, 255, 0.9);
-  color: #3567bc;
-}
-
-@media (max-width: 900px) {
-  .app-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .brand,
-  .header-actions,
-  .nav-links {
-    justify-content: center;
-  }
+.logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  background: transparent;
+  padding: 0;
 }
 </style>

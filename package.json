@@ -12,7 +12,11 @@
     "coverage": "npx vitest run --coverage"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
+    "papaparse": "^5.5.3",
+    "vue": "^3.5.13",
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
