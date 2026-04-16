@@ -55,7 +55,7 @@
   gap: 64px;
   flex: 1;
   justify-content: center;
-  margin-left: -200px;   /* shift nav slightly to the left */
+  margin-left: -160px;   /* shift nav slightly to the left */
 }
 
 .nav-links a {

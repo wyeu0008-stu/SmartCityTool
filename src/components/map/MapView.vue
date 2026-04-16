@@ -1,127 +1,146 @@
 <template>
-    <div class="map-page">
-  
-      <!-- 左边筛选 -->
-      <div class="sidebar">
-        <h2>Hazard Layers</h2>
-  
-        <div
-          v-for="layer in layers"
-          :key="layer.type"
-          class="layer"
-          :class="{ active: activeLayers.includes(layer.type) }"
-          @click="toggleLayer(layer.type)"
-        >
-          {{ layer.label }}
-        </div>
+  <div class="map-page">
+
+    <!-- 左侧筛选 -->
+    <div class="sidebar">
+      <h2>Hazard Layers</h2>
+
+      <div
+        v-for="layer in layers"
+        :key="layer.type"
+        class="layer"
+        :class="{ active: activeLayers.includes(layer.type) }"
+        @click="toggleLayer(layer.type)"
+      >
+        {{ layer.label }}
       </div>
-  
-      <!-- 右边地图 -->
-      <div id="map" class="map"></div>
-  
     </div>
-  </template>
-  
-  <script setup>
-  import { ref, onMounted } from 'vue'
-  import L from 'leaflet'
-  import 'leaflet/dist/leaflet.css'
-  
-  const layers = [
-    { type: 'accident', label: '🚗 Accident' },
-    { type: 'traffic', label: '🚦 Traffic' },
-    { type: 'construction', label: '🚧 Construction' },
-    { type: 'nolane', label: '🚴 No Lane' }
-  ]
-  
-  const activeLayers = ref(['accident', 'traffic', 'construction', 'nolane'])
-  
-  const riskPoints = [
-    { type: 'accident', coords: [-37.81, 144.96] },
-    { type: 'traffic', coords: [-37.82, 144.97] },
-    { type: 'construction', coords: [-37.83, 144.95] }
-  ]
-  
-  let map
-  let markers = []
-  
-  onMounted(() => {
-    map = L.map('map').setView([-37.8136, 144.9631], 12)
-  
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map)
-  
-    drawPoints()
-  })
-  
-  function drawPoints() {
-    // 清除旧的
-    markers.forEach(m => map.removeLayer(m))
-    markers = []
-  
-    riskPoints.forEach(point => {
-      if (!activeLayers.value.includes(point.type)) return
-  
-      const marker = L.circle(point.coords, {
-        radius: 200,
-        color: getColor(point.type),
-        fillOpacity: 0.4
-      }).addTo(map)
-  
-      markers.push(marker)
+
+    <!-- 地图 -->
+    <div id="map" class="map"></div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+import 'leaflet.markercluster'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+
+const layers = [
+  { type: 'bike_parking', label: '🅿️ Bike Parking' }
+]
+
+const activeLayers = ref(['bike_parking'])
+
+let map
+let clusterGroup
+
+function loadBikeParkingFromGeoJSON() {
+  fetch('/bike_parking.geojson')
+    .then(res => res.json())
+    .then(data => {
+      console.log('GeoJSON data:', data)
+
+      const points = data.features.map(f => ({
+        coords: [
+          f.geometry.coordinates[1],
+          f.geometry.coordinates[0]
+        ],
+        description: f.properties.amenity || 'Bike Parking'
+      }))
+
+      drawBikeParking(points)
     })
+    .catch(err => {
+      console.error('GeoJSON load failed', err)
+    })
+}
+
+// ===== Bike Parking =====
+function drawBikeParking(points) {
+  if (clusterGroup) {
+    map.removeLayer(clusterGroup)
   }
-  
-  function toggleLayer(type) {
-    if (activeLayers.value.includes(type)) {
-      activeLayers.value = activeLayers.value.filter(t => t !== type)
-    } else {
-      activeLayers.value.push(type)
+
+  clusterGroup = L.markerClusterGroup()
+
+  points.slice(0, 500).forEach(point => {
+    if (!activeLayers.value.includes('bike_parking')) return
+
+    const marker = L.circleMarker(point.coords, {
+      radius: 4,
+      color: '#3388ff',
+      fillOpacity: 0.6
+    }).bindPopup(`<b>${point.description}</b>`)
+
+    clusterGroup.addLayer(marker)
+  })
+
+  map.addLayer(clusterGroup)
+}
+
+// ===== 点击筛选 =====
+function toggleLayer(type) {
+  if (activeLayers.value.includes(type)) {
+    activeLayers.value = []
+
+    if (clusterGroup) {
+      map.removeLayer(clusterGroup)
     }
-  
-    drawPoints()
+  } else {
+    activeLayers.value = [type]
+    loadBikeParkingFromGeoJSON()
   }
-  
-  function getColor(type) {
-    switch (type) {
-      case 'accident': return 'red'
-      case 'traffic': return 'blue'
-      case 'construction': return 'orange'
-      case 'nolane': return 'purple'
-      default: return 'gray'
-    }
-  }
-  </script>
-  
-  <style scoped>
-  .map-page {
-    display: flex;
-    height: calc(100vh - 80px);
-  }
-  
-  /* 左侧 */
-  .sidebar {
-    width: 260px;
-    background: #f4f7fb;
-    padding: 20px;
-    border-right: 1px solid #e0e6ed;
-  }
-  
-  .layer {
-    background: white;
-    padding: 12px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    cursor: pointer;
-  }
-  
-  .layer.active {
-    background: #dbeafe;
-  }
-  
-  /* 地图 */
-  .map {
-    flex: 1;
-  }
-  </style>
+}
+
+onMounted(() => {
+  map = L.map('map').setView([-37.8136, 144.9631], 11)
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map)
+
+  loadBikeParkingFromGeoJSON()
+
+  setTimeout(() => {
+    map.invalidateSize()
+  }, 300)
+})
+</script>
+
+<style scoped>
+.map-page {
+  display: flex;
+  height: calc(100vh - 80px);
+  background: #eef4fb;
+}
+
+.sidebar {
+  width: 260px;
+  background: #f4f7fb;
+  padding: 20px;
+}
+
+.layer {
+  background: white;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.layer.active {
+  background: #dbeafe;
+}
+
+.map {
+  flex: 1;
+  height: 100%;
+  margin: 16px;
+  border-radius: 12px;
+}
+</style>
