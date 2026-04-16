@@ -2,7 +2,7 @@
   <div class="map-page">
 
     <div class="sidebar">
-      <h2>Hazard Layers</h2>
+      <h2>Map Filters</h2>
 
       <div
         v-for="layer in layers"
@@ -261,7 +261,6 @@ onMounted(() => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
-  // 📍 User location (定位功能)
   const locateControl = L.control({ position: 'topleft' })
 
   locateControl.onAdd = function () {
@@ -281,7 +280,6 @@ onMounted(() => {
 
   locateControl.addTo(map)
 
-  // 成功定位
   map.on('locationfound', (e) => {
     L.circleMarker(e.latlng, {
       radius: 6,
@@ -292,7 +290,6 @@ onMounted(() => {
       .openPopup()
   })
 
-  // 定位失败
   map.on('locationerror', () => {
     alert('Unable to get your location')
   })

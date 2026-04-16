@@ -4,38 +4,14 @@
       <!-- LEFT: MAP -->
       <div class="map-left">
         <div class="map-header">
-          <h3>Live Risk Map Preview</h3>
-          <span class="map-time">UPDATED 01:13:49 ↗</span>
+          <h3>Live Traffic Map Preview</h3>
+          <span class="map-time">UPDATED {{ currentTime }} ↗</span>
         </div>
 
         <div id="map" class="real-map"></div>
 
       </div>
 
-      <!-- RIGHT: LEGEND -->
-      <div class="map-right">
-        <div class="legend legend-right">
-          <div class="legend-item">
-            <span class="icon">🚗</span>
-            <span class="dot red"></span> Accident 2
-          </div>
-
-          <div class="legend-item">
-            <span class="icon">🚦</span>
-            <span class="dot blue"></span> Traffic 0
-          </div>
-
-          <div class="legend-item">
-            <span class="icon">🚴</span>
-            <span class="dot purple"></span> No Lane 0
-          </div>
-
-          <div class="legend-item">
-            <span class="icon">🚧</span>
-            <span class="dot orange"></span> Construction 1
-          </div>
-        </div>
-      </div>
     </div>
   </BaseCard>
 </template>
@@ -43,26 +19,19 @@
 <script setup>
 import BaseCard from '../common/BaseCard.vue'
 import { onMounted } from 'vue'
+import { ref } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+const currentTime = ref('')
+
+function updateTime() {
+  const now = new Date()
+  currentTime.value = now.toLocaleTimeString()
+}
 
 let map
 let routeLayer
-
-const risks = [
-  { lat: -37.81, lng: 144.96, type: 'accident' },
-  { lat: -37.82, lng: 144.98, type: 'accident' },
-  { lat: -37.80, lng: 144.95, type: 'construction' },
-  { lat: -37.83, lng: 144.97, type: 'safe' }
-]
-
-function getColor(type) {
-  if (type === 'accident') return 'red'
-  if (type === 'construction') return 'orange'
-  if (type === 'safe') return 'green'
-  if (type === 'traffic') return 'blue'
-  return 'purple'
-}
+const TOMTOM_KEY = 'u9ZdHP1X7qv2EMC65jrFu8dCV3PLEk8E'
 
 function drawRoute(coords) {
   if (routeLayer) {
@@ -74,6 +43,69 @@ function drawRoute(coords) {
   }).addTo(map)
 }
 
+function loadTrafficGrid() {
+  // 🌏 Melbourne bounding box (限制范围，避免请求全世界)
+  const MELB_BOUND = {
+    south: -38.2,
+    north: -37.5,
+    west: 144.5,
+    east: 145.3
+  }
+
+  const bounds = map.getBounds()
+
+  // 👉 当前视野 + 限制在 Melbourne 内
+  const south = Math.max(bounds.getSouth(), MELB_BOUND.south)
+  const north = Math.min(bounds.getNorth(), MELB_BOUND.north)
+  const west = Math.max(bounds.getWest(), MELB_BOUND.west)
+  const east = Math.min(bounds.getEast(), MELB_BOUND.east)
+
+  // ⚠️ 控制密度（避免 API 爆）
+  const step = 0.03
+
+  for (let lat = south; lat <= north; lat += step) {
+    for (let lon = west; lon <= east; lon += step) {
+
+      fetch(`https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?point=${lat},${lon}&key=${TOMTOM_KEY}`)
+        .then(res => res.json())
+        .then(data => {
+          const flow = data.flowSegmentData
+          if (!flow || !flow.coordinates) return
+
+          const speed = flow.currentSpeed
+          const free = flow.freeFlowSpeed
+
+          // Only show medium + high congestion (remove green / low traffic)
+          let color = null
+          if (speed < free * 0.5) {
+            color = '#cc0000'   // heavy traffic (red)
+          } else if (speed < free * 0.8) {
+            color = '#ff8c00'   // medium traffic (orange)
+          }
+
+          // skip low traffic (too many, not useful)
+          if (!color) return
+
+          const coords = flow.coordinates.coordinate
+          const latlngs = coords.map(c => [c.latitude, c.longitude])
+
+          L.polyline(latlngs, {
+            color: color,
+            weight: 6,
+            opacity: 0.9,
+            lineCap: 'round'
+          })
+          .bindPopup(`Speed: ${speed} km/h`)
+          .addTo(map)
+
+        })
+        .catch(err => {
+          console.error('Traffic API error', err)
+        })
+    }
+  }
+}
+
 defineProps({
   route: {
     type: Object,
@@ -82,39 +114,29 @@ defineProps({
 })
 
 onMounted(() => {
+  updateTime()
   map = L.map('map').setView([-37.8136, 144.9631], 13)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
-  risks.forEach(risk => {
-    L.circleMarker([risk.lat, risk.lng], {
-      radius: 8,
-      color: getColor(risk.type),
-      fillOpacity: 0.8
-    })
-    .bindPopup(`Risk: ${risk.type}`)
-    .addTo(map)
+  // ===== Load Traffic (TomTom API) =====
+  loadTrafficGrid()
+  map.on('moveend', () => {
+    loadTrafficGrid()
   })
-
-  // default route
-  drawRoute([
-    [-37.8136, 144.9631],
-    [-37.8150, 144.9700],
-    [-37.8200, 144.9750]
-  ])
 })
 </script>
 
 <style scoped>
 .map-panel {
-  padding: 24px 24px;          /* reduce left/right padding so content expands */
+  padding: 24px 24px;          
   border-radius: 28px;
   background: #eef5fb;
   margin: 40px auto;
   width: 100%;
-  max-width: 100%;           /* increase width */
+  max-width: 100%;        
   margin-left: auto;
   margin-right: auto;
   box-shadow: 0 16px 50px rgba(0,0,0,0.10);
@@ -171,8 +193,7 @@ onMounted(() => {
 }
 
 .real-map {
-  height: 700px;               /* increase for better presence */
-  border-radius: 18px;
+  height: 700px;             
   overflow: hidden;
 }
 
@@ -199,10 +220,7 @@ onMounted(() => {
   border-radius: 50%;
 }
 
-.red { background: red; }
 .blue { background: blue; }
-.purple { background: purple; }
-.orange { background: orange; }
 
 .icon {
   font-size: 26px;
