@@ -5,11 +5,12 @@
       <span class="brand-text">SmartCycle Navigator</span>
     </div>
 
+
     <nav class="nav-links">
-      <a href="#" class="active">Home</a>
-      <a href="#">Map</a>
-      <a href="#">Routes</a>
-      <a href="#">Safety Insights</a>
+      <router-link to="/" active-class="active">Home</router-link>
+      <router-link to="/map" active-class="active">Map</router-link>
+      <router-link to="/routes" active-class="active">Routes</router-link>
+      <router-link to="/insights" active-class="active">Safety Insights</router-link>
     </nav>
 
     <div class="header-actions">

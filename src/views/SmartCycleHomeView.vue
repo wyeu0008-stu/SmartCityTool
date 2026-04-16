@@ -34,7 +34,7 @@
   </div>
 </template>
 <script setup>
-import AppHeader from '../components/layout/AppHeader.vue'
+
 import RouteMapPanel from '../components/map/RouteMapPanel.vue'
 import { useRoutes } from '../composables/useRoutes'
 
