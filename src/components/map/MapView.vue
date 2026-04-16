@@ -1,7 +1,6 @@
 <template>
   <div class="map-page">
 
-    <!-- 左侧筛选 -->
     <div class="sidebar">
       <h2>Hazard Layers</h2>
 
@@ -16,7 +15,6 @@
       </div>
     </div>
 
-    <!-- 地图 -->
     <div id="map" class="map"></div>
 
   </div>
@@ -29,15 +27,19 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+import Papa from 'papaparse'
 
 const layers = [
-  { type: 'bike_parking', label: '🅿️ Bike Parking' }
+  { type: 'accident', label: '🚗 Accident' },
+  { type: 'bike_parking', label: '🅿️ Bike Parking' },
+  { type: 'bike_lane', label: '🚴 Bike Lane' },
 ]
 
 const activeLayers = ref(['bike_parking'])
 
 let map
 let clusterGroup
+let bikeLaneLayer
 
 function loadBikeParkingFromGeoJSON() {
   fetch('/bike_parking.geojson')
@@ -60,13 +62,82 @@ function loadBikeParkingFromGeoJSON() {
     })
 }
 
-// ===== Bike Parking =====
+function loadAccidents() {
+  fetch('/node.csv')
+    .then(res => res.text())
+    .then(csv => {
+      const parsed = Papa.parse(csv, { header: true })
+
+      const points = parsed.data
+        .filter(row => row.LATITUDE && row.LONGITUDE)
+        .map(row => ({
+          coords: [
+            parseFloat(row.LATITUDE),
+            parseFloat(row.LONGITUDE)
+          ],
+          description: 'Accident'
+        }))
+        .slice(0, 500)
+
+      drawAccidents(points)
+    })
+}
+
+function loadBikeLanes() {
+  fetch('/bike_line.geojson')
+    .then(res => res.json())
+    .then(data => {
+      const cleanData = data.features.filter(f => {
+        return (
+          f.geometry.type === "LineString" &&
+          f.properties.highway === "cycleway" &&
+          f.properties.access !== "private"
+        )
+      })
+
+      drawBikeLanes(cleanData)
+    })
+}
+
 function drawBikeParking(points) {
   if (clusterGroup) {
     map.removeLayer(clusterGroup)
   }
 
-  clusterGroup = L.markerClusterGroup()
+  clusterGroup = L.markerClusterGroup({
+    iconCreateFunction: function (cluster) {
+      const count = cluster.getChildCount()
+
+      // Glassmorphism border color logic
+      let borderColor = 'rgba(0,160,0,0.8)'
+      if (count > 15) {
+        borderColor = 'rgba(220,0,0,0.9)'
+      } else if (count > 5) {
+        borderColor = 'rgba(255,150,0,0.9)'
+      }
+
+      return L.divIcon({
+        html: `<div style="
+          background: rgba(255,255,255,0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 2px solid ${borderColor};
+          border-radius: 50%;
+          color: #222;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+          font-size: 14px;
+        ">${count}</div>`,
+        className: 'custom-cluster',
+        iconSize: [40, 40]
+      })
+    }
+  })
 
   points.slice(0, 500).forEach(point => {
     if (!activeLayers.value.includes('bike_parking')) return
@@ -83,17 +154,103 @@ function drawBikeParking(points) {
   map.addLayer(clusterGroup)
 }
 
-// ===== 点击筛选 =====
+function drawAccidents(points) {
+  if (clusterGroup) {
+    map.removeLayer(clusterGroup)
+  }
+
+  clusterGroup = L.markerClusterGroup({
+    iconCreateFunction: function (cluster) {
+      const count = cluster.getChildCount()
+
+      // Glassmorphism border color logic
+      let borderColor = 'rgba(0,160,0,0.8)'
+      if (count > 15) {
+        borderColor = 'rgba(220,0,0,0.9)'
+      } else if (count > 5) {
+        borderColor = 'rgba(255,150,0,0.9)'
+      }
+
+      return L.divIcon({
+        html: `<div style="
+          background: rgba(255,255,255,0.6);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 2px solid ${borderColor};
+          border-radius: 50%;
+          color: #222;
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+          font-size: 14px;
+        ">${count}</div>`,
+        className: 'custom-cluster',
+        iconSize: [40, 40]
+      })
+    }
+  })
+
+  points.forEach(point => {
+    if (!activeLayers.value.includes('accident')) return
+
+    const marker = L.circleMarker(point.coords, {
+      radius: 4,
+      color: 'red',
+      fillOpacity: 0.6
+    }).bindPopup(`<b>Accident</b>`)
+
+    clusterGroup.addLayer(marker)
+  })
+
+  map.addLayer(clusterGroup)
+}
+
+function drawBikeLanes(features) {
+  if (bikeLaneLayer) {
+    map.removeLayer(bikeLaneLayer)
+  }
+
+  bikeLaneLayer = L.geoJSON(features, {
+    style: {
+      color: '#007AFF',
+      weight: 3,
+      opacity: 0.7
+    }
+  })
+
+  if (activeLayers.value.includes('bike_lane')) {
+    bikeLaneLayer.addTo(map)
+  }
+}
+
 function toggleLayer(type) {
   if (activeLayers.value.includes(type)) {
-    activeLayers.value = []
+    activeLayers.value = activeLayers.value.filter(t => t !== type)
 
     if (clusterGroup) {
       map.removeLayer(clusterGroup)
     }
+    if (type === 'bike_lane' && bikeLaneLayer) {
+      map.removeLayer(bikeLaneLayer)
+    }
   } else {
-    activeLayers.value = [type]
-    loadBikeParkingFromGeoJSON()
+    activeLayers.value.push(type)
+
+    if (type === 'bike_parking') {
+      loadBikeParkingFromGeoJSON()
+    }
+
+    if (type === 'accident') {
+      loadAccidents()
+    }
+
+    if (type === 'bike_lane') {
+      loadBikeLanes()
+    }
   }
 }
 
@@ -104,7 +261,45 @@ onMounted(() => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
+  // 📍 User location (定位功能)
+  const locateControl = L.control({ position: 'topleft' })
+
+  locateControl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control')
+    div.innerHTML = '📍'
+    div.style.cursor = 'pointer'
+    div.style.background = 'white'
+    div.style.padding = '6px'
+    div.style.fontSize = '18px'
+
+    div.onclick = () => {
+      map.locate({ setView: true, maxZoom: 16 })
+    }
+
+    return div
+  }
+
+  locateControl.addTo(map)
+
+  // 成功定位
+  map.on('locationfound', (e) => {
+    L.circleMarker(e.latlng, {
+      radius: 6,
+      color: '#007AFF',
+      fillOpacity: 0.8
+    }).addTo(map)
+      .bindPopup('You are here')
+      .openPopup()
+  })
+
+  // 定位失败
+  map.on('locationerror', () => {
+    alert('Unable to get your location')
+  })
+
   loadBikeParkingFromGeoJSON()
+  loadAccidents()
+  loadBikeLanes()
 
   setTimeout(() => {
     map.invalidateSize()
