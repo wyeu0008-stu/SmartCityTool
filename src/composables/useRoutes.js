@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { mockRouteOptions } from '../data/mockRoutes'
 import { fetchRoutes } from '../services/routeService'
 
+
 export function useRoutes() {
   const currentLocation = ref('')
   const destination = ref('')

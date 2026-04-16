@@ -1,7 +1,8 @@
 <template>
-  <SmartCycleHomeView />
+  <AppHeader />
+  <router-view />
 </template>
 
 <script setup>
-import SmartCycleHomeView from './views/SmartCycleHomeView.vue'
+import AppHeader from './components/layout/AppHeader.vue'
 </script>

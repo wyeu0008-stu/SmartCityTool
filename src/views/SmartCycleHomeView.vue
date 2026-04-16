@@ -1,60 +1,47 @@
 <template>
   <div class="page-container">
-    <div class="page-background"></div>
 
     <div class="page-shell">
       <AppHeader />
 
-      <section class="hero-section">
-        <h1 class="hero-title">SmartCycle Navigator</h1>
-        <p class="hero-subtitle">
-          A Smart Cycling Safety and Decision Support System<br />
-          Using Open Mobility Data
-        </p>
+      <!-- HERO SECTION (new layout) -->
+      <section class="hero">
+        <div class="hero-left">
+          <p class="hero-tag">SMART CYCLING SAFETY SYSTEM</p>
+          <h1>
+            Cycle with <span>Safety</span>
+          </h1>
+          <p>
+            A smart cycling safety and decision support system using open mobility data.
+          </p>
+
+          <div class="hero-buttons">
+            <button class="btn-primary">Check Map</button>
+            <button class="btn-secondary">Plan My Route</button>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <img src="/public/tomi-vadasz-SBKJ47obEHY-unsplash.jpg" alt="hero" />
+        </div>
       </section>
 
-      <RouteSearchCard
-        v-model:currentLocation="currentLocation"
-        v-model:destination="destination"
-        :loading="loading"
-        @submit="loadRoutes"
-      />
-
-      <p v-if="error" class="error-text">{{ error }}</p>
-
-      <RecommendedRouteCard :route="recommendedRoute" />
+      <!-- ORIGINAL FEATURES BELOW -->
 
       <RouteMapPanel :route="selectedRoute" />
 
-      <RouteCompareSection
-        :routes="routes"
-        :selected-route-id="selectedRouteId"
-        @view-route="selectRoute"
-        @compare-all="handleCompareAll"
-      />
-
-      <div class="bike-illustration">🚴‍♂️</div>
     </div>
   </div>
 </template>
 <script setup>
-import AppHeader from '../components/layout/AppHeader.vue'
-import RouteSearchCard from '../components/search/RouteSearchCard.vue'
-import RecommendedRouteCard from '../components/route/RecommendedRouteCard.vue'
-import RouteCompareSection from '../components/route/RouteCompareSection.vue'
+
 import RouteMapPanel from '../components/map/RouteMapPanel.vue'
 import { useRoutes } from '../composables/useRoutes'
 
 const {
-  currentLocation,
-  destination,
   routes,
-  loading,
-  error,
-  recommendedRoute,
   selectedRoute,
   selectedRouteId,
-  loadRoutes,
   selectRoute
 } = useRoutes()
 
@@ -64,23 +51,17 @@ function handleCompareAll() {
 </script>
 
 <style scoped>
-.hero-section {
-  text-align: center;
-  padding: 42px 16px 28px;
+.page-container {
+  background: linear-gradient(180deg, #f4f7fb 0%, #eaf1f8 100%);
+  min-height: 100vh;
 }
 
-.hero-title {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 800;
-  color: #274a87;
-}
-
-.hero-subtitle {
-  margin-top: 14px;
-  color: #4c6692;
-  line-height: 1.6;
-  font-size: 1.1rem;
+.page-shell {
+  background-color: transparent;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
 
 .error-text {
@@ -100,9 +81,95 @@ function handleCompareAll() {
   opacity: 0.9;
 }
 
-@media (max-width: 768px) {
-  .hero-section {
-    padding-top: 28px;
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 40px 0;
+  width: 100%;
+  padding: 40px 0;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-tag {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #6b7a8c;
+  margin-bottom: 10px;
+}
+
+.hero-left h1 {
+  font-size: 64px;
+  font-weight: 800;
+  color: #1f2d3d;
+}
+
+.hero-left span {
+  color: #2f6f4f;
+}
+
+.hero-left p {
+  margin-top: 12px;
+  color: #6b7a8c;
+  font-size: 1.05rem;
+}
+
+.hero-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+}
+
+.btn-primary {
+  background: #2f6f4f;
+  color: white;
+  padding: 14px 28px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+}
+
+ .btn-secondary {
+   background: #2f6f4f;
+   color: white;
+   padding: 14px 28px;
+   border-radius: 10px;
+   border: none;
+   cursor: pointer;
+   font-size: 16px;
+   transition: transform 0.2s ease, background 0.2s ease;
+ }
+
+ .btn-secondary:hover {
+   transform: translateY(-2px);
+   background: #275c41;
+ }
+
+.hero-right img {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 20px;
+  transform: rotate(2deg);
+}
+
+@media (max-width: 900px) {
+  .hero {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .hero-right img {
+    margin-top: 20px;
+    width: 280px;
   }
 }
 </style>
