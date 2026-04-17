@@ -44,7 +44,7 @@ function drawRoute(coords) {
 }
 
 function loadTrafficGrid() {
-  // 🌏 Melbourne bounding box (限制范围，避免请求全世界)
+  // 🌏 Melbourne bounding box 
   const MELB_BOUND = {
     south: -38.2,
     north: -37.5,
@@ -54,13 +54,13 @@ function loadTrafficGrid() {
 
   const bounds = map.getBounds()
 
-  // 👉 当前视野 + 限制在 Melbourne 内
+  // Current view + limited to Melbourne
   const south = Math.max(bounds.getSouth(), MELB_BOUND.south)
   const north = Math.min(bounds.getNorth(), MELB_BOUND.north)
   const west = Math.max(bounds.getWest(), MELB_BOUND.west)
   const east = Math.min(bounds.getEast(), MELB_BOUND.east)
 
-  // ⚠️ 控制密度（避免 API 爆）
+  // Control density (to avoid API overload)
   const step = 0.03
 
   for (let lat = south; lat <= north; lat += step) {
