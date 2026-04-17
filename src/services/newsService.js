@@ -1,31 +1,18 @@
-const API_KEY = import.meta.env.VITE_GNEWS_API_KEY
-
 export async function fetchTrafficNews() {
-  if (!API_KEY) {
-    throw new Error('Missing GNews API key')
-  }
-
-  const query = encodeURIComponent('cycling safety OR bike accident')
-  const url =
-    `https://gnews.io/api/v4/search` +
-    `?q=${query}` +
-    `&lang=en` +
-    `&max=5` +
-    `&apikey=${API_KEY}`
-
-  const response = await fetch(url)
+  const response = await fetch('/api/news/traffic')
 
   if (!response.ok) {
-    throw new Error('Failed to fetch traffic news')
+    let message = 'Failed to fetch traffic news'
+
+    try {
+      const errorData = await response.json()
+      message = errorData.detail || message
+    } catch {
+      // ignore
+    }
+
+    throw new Error(message)
   }
 
-  const data = await response.json()
-
-  return (data.articles || []).map((item) => ({
-    title: item.title,
-    description: item.description,
-    url: item.url,
-    source: item.source?.name || 'Unknown source',
-    publishedAt: item.publishedAt
-  }))
+  return await response.json()
 }
