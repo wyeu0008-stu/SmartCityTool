@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { useTrafficNews } from '../useTrafficNews'
-import { fetchTrafficNews } from '../services/newsService'
+import { fetchTrafficNews } from '../../services/newsService'
 
-vi.mock('../services/newsService', () => ({
+vi.mock('../../services/newsService', () => ({
   fetchTrafficNews: vi.fn()
 }))
 
