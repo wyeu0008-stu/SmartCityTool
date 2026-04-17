@@ -2,7 +2,7 @@
   <div class="map-page">
 
     <div class="sidebar">
-      <h2>Hazard Layers</h2>
+      <h2>Map Filters</h2>
 
       <div
         v-for="layer in layers"
@@ -261,7 +261,10 @@ onMounted(() => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
+<<<<<<< HEAD
   // 📍 User location (location function)
+=======
+>>>>>>> 74bbfec109149c444e924d5168b0f80a3db58a2d
   const locateControl = L.control({ position: 'topleft' })
 
   locateControl.onAdd = function () {
@@ -281,7 +284,10 @@ onMounted(() => {
 
   locateControl.addTo(map)
 
+<<<<<<< HEAD
   // Successful positioning
+=======
+>>>>>>> 74bbfec109149c444e924d5168b0f80a3db58a2d
   map.on('locationfound', (e) => {
     L.circleMarker(e.latlng, {
       radius: 6,
@@ -292,7 +298,10 @@ onMounted(() => {
       .openPopup()
   })
 
+<<<<<<< HEAD
   // Location failed
+=======
+>>>>>>> 74bbfec109149c444e924d5168b0f80a3db58a2d
   map.on('locationerror', () => {
     alert('Unable to get your location')
   })

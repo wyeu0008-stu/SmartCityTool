@@ -16,8 +16,8 @@
           </p>
 
           <div class="hero-buttons">
-            <button class="btn-primary">Check Map</button>
-            <button class="btn-secondary">Plan My Route</button>
+            <button class="btn-primary" @click="goMap">Check Map</button>
+            <button class="btn-secondary" @click="goRoute">Plan My Route</button>
           </div>
         </div>
 
@@ -37,6 +37,7 @@
 
 import RouteMapPanel from '../components/map/RouteMapPanel.vue'
 import { useRoutes } from '../composables/useRoutes'
+import { useRouter } from 'vue-router'
 
 const {
   routes,
@@ -44,6 +45,16 @@ const {
   selectedRouteId,
   selectRoute
 } = useRoutes()
+
+const router = useRouter()
+
+function goMap() {
+  router.push('/map')
+}
+
+function goRoute() {
+  router.push('/routes')
+}
 
 function handleCompareAll() {
   console.log('Compare all routes', routes.value)
