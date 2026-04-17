@@ -261,6 +261,9 @@ onMounted(() => {
     attribution: '&copy; OpenStreetMap'
   }).addTo(map)
 
+
+  // 📍 User location (location function)
+
   const locateControl = L.control({ position: 'topleft' })
 
   locateControl.onAdd = function () {
@@ -280,6 +283,8 @@ onMounted(() => {
 
   locateControl.addTo(map)
 
+  // Successful positioning
+
   map.on('locationfound', (e) => {
     L.circleMarker(e.latlng, {
       radius: 6,
@@ -290,6 +295,7 @@ onMounted(() => {
       .openPopup()
   })
 
+  // Location failed
   map.on('locationerror', () => {
     alert('Unable to get your location')
   })
