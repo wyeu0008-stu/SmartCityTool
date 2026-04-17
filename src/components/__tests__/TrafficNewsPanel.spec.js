@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, it, expect } from 'vitest'
-import TrafficNewsPanel from '../src/components/safety/TrafficNewsPanel.vue'
+import TrafficNewsPanel from '../safety/TrafficNewsPanel.vue'
 
 describe('TrafficNewsPanel.vue', () => {
   it('renders panel title correctly', () => {

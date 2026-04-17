@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import RouteMapPanel from '../src/components/map/RouteMapPanel.vue'
+import RouteMapPanel from '../map/RouteMapPanel.vue'
 
 // mock BaseCard，Avoid relying on real UI components
 vi.mock('../src/components/common/BaseCard.vue', () => ({

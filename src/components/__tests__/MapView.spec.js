@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import MapPage from '../src/components/map/MapPage.vue'
+import MapPage from '../map/MapPage.vue'
 
 vi.mock('papaparse', () => ({
   default: {

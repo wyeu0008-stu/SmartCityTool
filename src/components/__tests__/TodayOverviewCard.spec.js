@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, it, expect } from 'vitest'
-import TodayOverviewCard from '../src/components/safety/TodayOverviewCard.vue'
+import TodayOverviewCard from '../safety/TodayOverviewCard.vue'
 
 describe('TodayOverviewCard.vue', () => {
   it('renders title and date text correctly', () => {
