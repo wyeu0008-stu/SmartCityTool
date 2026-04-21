@@ -14,7 +14,6 @@
     </nav>
 
     <div class="header-actions">
-      <button class="signin-btn">Sign In</button>
     </div>
   </header>
 </template>

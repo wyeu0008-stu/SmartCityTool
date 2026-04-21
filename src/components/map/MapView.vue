@@ -1,6 +1,7 @@
 <template>
   <div class="map-page">
 
+    <!-- LEFT SIDEBAR -->
     <div class="sidebar">
       <h2>Map Filters</h2>
 
@@ -8,13 +9,14 @@
         v-for="layer in layers"
         :key="layer.type"
         class="layer"
-        :class="{ active: activeLayers.includes(layer.type) }"
+        :class="{ active: activeLayer === layer.type }"
         @click="toggleLayer(layer.type)"
       >
         {{ layer.label }}
       </div>
     </div>
 
+    <!-- MAP -->
     <div id="map" class="map"></div>
 
   </div>
@@ -27,25 +29,25 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-import Papa from 'papaparse'
 
 const layers = [
-  { type: 'accident', label: '🚗 Accident' },
   { type: 'bike_parking', label: '🅿️ Bike Parking' },
   { type: 'bike_lane', label: '🚴 Bike Lane' },
 ]
 
-const activeLayers = ref(['bike_parking'])
+const activeLayer = ref('bike_parking')
 
 let map
 let clusterGroup
 let bikeLaneLayer
+let userPath = []
+let pathLayer
+let routeLayer
 
 function loadBikeParkingFromGeoJSON() {
   fetch('/bike_parking.geojson')
     .then(res => res.json())
     .then(data => {
-      console.log('GeoJSON data:', data)
 
       const points = data.features.map(f => ({
         coords: [
@@ -57,36 +59,72 @@ function loadBikeParkingFromGeoJSON() {
 
       drawBikeParking(points)
     })
-    .catch(err => {
-      console.error('GeoJSON load failed', err)
-    })
+    .catch(err => console.error(err))
 }
 
-function loadAccidents() {
-  fetch('/node.csv')
-    .then(res => res.text())
-    .then(csv => {
-      const parsed = Papa.parse(csv, { header: true })
+function drawBikeParking(points) {
+  if (clusterGroup) {
+    map.removeLayer(clusterGroup)
+  }
 
-      const points = parsed.data
-        .filter(row => row.LATITUDE && row.LONGITUDE)
-        .map(row => ({
-          coords: [
-            parseFloat(row.LATITUDE),
-            parseFloat(row.LONGITUDE)
-          ],
-          description: 'Accident'
-        }))
-        .slice(0, 500)
+  clusterGroup = L.markerClusterGroup({
+    iconCreateFunction: function (cluster) {
+      const count = cluster.getChildCount()
 
-      drawAccidents(points)
+      let borderColor = '#4caf50' 
+      if (count > 50) borderColor = '#e53935'   
+      else if (count > 15) borderColor = '#fb8c00' 
+      else if (count > 5) borderColor = '#fbc02d'  
+
+      return L.divIcon({
+        html: `<div style="
+          background: white;
+          border: 3px solid ${borderColor};
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          color: black;
+        ">${count}</div>`,
+        className: '',
+        iconSize: [40, 40]
+      })
+    }
+  })
+
+  points.slice(0, 500).forEach(point => {
+    const marker = L.circleMarker(point.coords, {
+      radius: 4,
+      color: '#3388ff',
+      fillOpacity: 0.6
     })
+    .bindPopup(`<b>${point.description}</b><br/>Click to navigate`)
+    .on('click', () => {
+      if (userPath.length === 0) {
+        alert('Get your location first')
+        return
+      }
+
+      const start = userPath[userPath.length - 1]
+      const end = point.coords
+
+      getRoute(start, end)
+    })
+
+    clusterGroup.addLayer(marker)
+  })
+
+  map.addLayer(clusterGroup)
 }
 
 function loadBikeLanes() {
   fetch('/bike_line.geojson')
     .then(res => res.json())
     .then(data => {
+
       const cleanData = data.features.filter(f => {
         return (
           f.geometry.type === "LineString" &&
@@ -99,116 +137,6 @@ function loadBikeLanes() {
     })
 }
 
-function drawBikeParking(points) {
-  if (clusterGroup) {
-    map.removeLayer(clusterGroup)
-  }
-
-  clusterGroup = L.markerClusterGroup({
-    iconCreateFunction: function (cluster) {
-      const count = cluster.getChildCount()
-
-      // Glassmorphism border color logic
-      let borderColor = 'rgba(0,160,0,0.8)'
-      if (count > 15) {
-        borderColor = 'rgba(220,0,0,0.9)'
-      } else if (count > 5) {
-        borderColor = 'rgba(255,150,0,0.9)'
-      }
-
-      return L.divIcon({
-        html: `<div style="
-          background: rgba(255,255,255,0.6);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          border: 2px solid ${borderColor};
-          border-radius: 50%;
-          color: #222;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-          font-size: 14px;
-        ">${count}</div>`,
-        className: 'custom-cluster',
-        iconSize: [40, 40]
-      })
-    }
-  })
-
-  points.slice(0, 500).forEach(point => {
-    if (!activeLayers.value.includes('bike_parking')) return
-
-    const marker = L.circleMarker(point.coords, {
-      radius: 4,
-      color: '#3388ff',
-      fillOpacity: 0.6
-    }).bindPopup(`<b>${point.description}</b>`)
-
-    clusterGroup.addLayer(marker)
-  })
-
-  map.addLayer(clusterGroup)
-}
-
-function drawAccidents(points) {
-  if (clusterGroup) {
-    map.removeLayer(clusterGroup)
-  }
-
-  clusterGroup = L.markerClusterGroup({
-    iconCreateFunction: function (cluster) {
-      const count = cluster.getChildCount()
-
-      // Glassmorphism border color logic
-      let borderColor = 'rgba(0,160,0,0.8)'
-      if (count > 15) {
-        borderColor = 'rgba(220,0,0,0.9)'
-      } else if (count > 5) {
-        borderColor = 'rgba(255,150,0,0.9)'
-      }
-
-      return L.divIcon({
-        html: `<div style="
-          background: rgba(255,255,255,0.6);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          border: 2px solid ${borderColor};
-          border-radius: 50%;
-          color: #222;
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-          font-size: 14px;
-        ">${count}</div>`,
-        className: 'custom-cluster',
-        iconSize: [40, 40]
-      })
-    }
-  })
-
-  points.forEach(point => {
-    if (!activeLayers.value.includes('accident')) return
-
-    const marker = L.circleMarker(point.coords, {
-      radius: 4,
-      color: 'red',
-      fillOpacity: 0.6
-    }).bindPopup(`<b>Accident</b>`)
-
-    clusterGroup.addLayer(marker)
-  })
-
-  map.addLayer(clusterGroup)
-}
-
 function drawBikeLanes(features) {
   if (bikeLaneLayer) {
     map.removeLayer(bikeLaneLayer)
@@ -216,41 +144,59 @@ function drawBikeLanes(features) {
 
   bikeLaneLayer = L.geoJSON(features, {
     style: {
-      color: '#007AFF',
-      weight: 3,
-      opacity: 0.7
+      color: '#0050FF',   
+      weight: 4,
+      opacity: 0.85
     }
   })
 
-  if (activeLayers.value.includes('bike_lane')) {
-    bikeLaneLayer.addTo(map)
-  }
+  bikeLaneLayer.addTo(map)
+}
+
+function getRoute(start, end) {
+  const url = `https://router.project-osrm.org/route/v1/bike/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.routes || data.routes.length === 0) return
+
+      const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]])
+      const distance = data.routes[0].distance / 1000 // km
+      const duration = data.routes[0].duration / 60   // minutes
+
+      if (routeLayer) {
+        map.removeLayer(routeLayer)
+      }
+
+      routeLayer = L.polyline(coords, {
+        color: '#003366',
+        weight: 5
+      })
+      .bindPopup(`
+        🚴 Distance: ${distance.toFixed(2)} km<br/>
+        ⏱ Time: ${duration.toFixed(0)} min
+      `)
+      .addTo(map)
+
+      map.fitBounds(routeLayer.getBounds())
+      routeLayer.openPopup()
+    })
+    .catch(err => console.error('Route error:', err))
 }
 
 function toggleLayer(type) {
-  if (activeLayers.value.includes(type)) {
-    activeLayers.value = activeLayers.value.filter(t => t !== type)
 
-    if (clusterGroup) {
-      map.removeLayer(clusterGroup)
-    }
-    if (type === 'bike_lane' && bikeLaneLayer) {
-      map.removeLayer(bikeLaneLayer)
-    }
-  } else {
-    activeLayers.value.push(type)
+  activeLayer.value = type
 
-    if (type === 'bike_parking') {
-      loadBikeParkingFromGeoJSON()
-    }
+  if (clusterGroup) map.removeLayer(clusterGroup)
+  if (bikeLaneLayer) map.removeLayer(bikeLaneLayer)
+  if (type === 'bike_parking') {
+    loadBikeParkingFromGeoJSON()
+  }
 
-    if (type === 'accident') {
-      loadAccidents()
-    }
-
-    if (type === 'bike_lane') {
-      loadBikeLanes()
-    }
+  if (type === 'bike_lane') {
+    loadBikeLanes()
   }
 }
 
@@ -269,7 +215,6 @@ onMounted(() => {
     div.style.cursor = 'pointer'
     div.style.background = 'white'
     div.style.padding = '6px'
-    div.style.fontSize = '18px'
 
     div.onclick = () => {
       map.locate({ setView: true, maxZoom: 16 })
@@ -279,8 +224,26 @@ onMounted(() => {
   }
 
   locateControl.addTo(map)
+  map.locate({ watch: true, setView: false })
 
   map.on('locationfound', (e) => {
+    const latlng = [e.latlng.lat, e.latlng.lng]
+
+    // store path
+    userPath.push(latlng)
+
+    // draw/update path
+    if (pathLayer) {
+      map.removeLayer(pathLayer)
+    }
+
+    pathLayer = L.polyline(userPath, {
+      color: '#007AFF',
+      weight: 5,
+      opacity: 0.8
+    }).addTo(map)
+
+    // show current location
     L.circleMarker(e.latlng, {
       radius: 6,
       color: '#007AFF',
@@ -295,8 +258,6 @@ onMounted(() => {
   })
 
   loadBikeParkingFromGeoJSON()
-  loadAccidents()
-  loadBikeLanes()
 
   setTimeout(() => {
     map.invalidateSize()
@@ -323,10 +284,12 @@ onMounted(() => {
   border-radius: 10px;
   margin-bottom: 10px;
   cursor: pointer;
+  transition: 0.2s;
 }
 
 .layer.active {
   background: #dbeafe;
+  font-weight: bold;
 }
 
 .map {
