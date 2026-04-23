@@ -49,11 +49,11 @@ const {
 const router = useRouter()
 
 function goMap() {
-  router.push('/map')
+  router.push('/oldver/map')
 }
 
 function goRoute() {
-  router.push('/routes')
+  router.push('/oldver/map')
 }
 
 function handleCompareAll() {
