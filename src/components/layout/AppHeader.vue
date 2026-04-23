@@ -1,106 +1,105 @@
 <template>
   <header class="app-header">
     <div class="brand">
-      <img src="/cycling.png" alt="logo" class="logo" />
+      <img :src="logoSrc" alt="logo" class="logo" />
       <span class="brand-text">SmartCycle Navigator</span>
     </div>
 
-
-    <nav class="nav-links">
+    <nav class="nav-links" aria-label="Primary">
       <router-link to="/" active-class="active">Home</router-link>
       <router-link to="/map" active-class="active">Map</router-link>
-      <router-link to="/routes" active-class="active">Routes</router-link>
       <router-link to="/insights" active-class="active">Safety Insights</router-link>
     </nav>
-
-    <div class="header-actions">
-      <button class="signin-btn">Sign In</button>
-    </div>
   </header>
 </template>
+
+<script setup>
+const logoSrc = '/cycling.png'
+</script>
 
 <style scoped>
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-
-  width: 100vw;                
+  gap: 20px;
+  width: 100vw;
   max-width: 100vw;
-  margin-left: calc(50% - 50vw); 
+  margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
-
-  padding: 18px 60px;
-
-  background: #ffffff;
-  border-bottom: 1px solid #e6edf5;
+  padding: 16px 24px;
+  background: linear-gradient(90deg, #2c66bc, #3f7ed5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow: 0 10px 24px rgba(31, 68, 128, 0.18);
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-right: 80px;
+  min-width: 0;
 }
 
 .brand-text {
+  color: #ffffff;
+  font-size: 1.08rem;
   font-weight: 700;
-  font-size: 1.25rem;
-  color: #1f2d3d;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 64px;
+  justify-content: flex-end;
+  gap: 10px;
   flex: 1;
-  justify-content: center;
-  margin-left: -160px;   /* shift nav slightly to the left */
+  min-width: 0;
 }
 
 .nav-links a {
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.96rem;
   text-decoration: none;
-  color: #5a6b7b;
-  font-size: 1.05rem;
-  position: relative;
+  white-space: nowrap;
 }
 
 .nav-links a.active {
-  color: #2f6f4f;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
   font-weight: 700;
 }
 
-.nav-links a.active::after {
-  content: "";
-  position: absolute;
-  bottom: -6px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: #2f6f4f;
-  border-radius: 2px;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  margin-left: 80px;
-}
-
-.signin-btn {
-  border: 1px solid #d0d7de;
-  background: #ffffff;
-  padding: 10px 18px;
-  border-radius: 22px;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
 .logo {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
-  background: transparent;
-  padding: 0;
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .brand {
+    justify-content: center;
+  }
+
+  .brand-text {
+    font-size: 1rem;
+  }
+
+  .nav-links {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
 }
 </style>
