@@ -14,7 +14,16 @@ const routeOptions = [
 const safestRoute = computed(() => routeOptions[0])
 
 function openMap() {
-  router.push('/map')
+  const targetDestination = destination.value.trim() || 'New Park'
+
+  router.push({
+    path: '/map',
+    query: {
+      from: 'current-location',
+      destination: targetDestination,
+      showRoute: 'true'
+    }
+  })
 }
 </script>
 
@@ -29,14 +38,25 @@ function openMap() {
 
       <form class="route-search" @submit.prevent="openMap">
         <label class="field current-location">
-          <span class="pin-icon">O</span>
+          <span class="pin-icon">📍</span>
           <input value="Current Location" readonly />
         </label>
         <label class="field">
-          <span class="pin-icon hollow">O</span>
-          <input v-model="destination" placeholder="Enter Destination" />
-          <button type="button" class="field-menu" aria-label="Choose destination">v</button>
+          <span class="pin-icon hollow">🔍</span>
+          <input
+            v-model="destination"
+            list="release-destination-options"
+            placeholder="Enter Destination"
+          />
+          <button type="button" class="field-menu" aria-label="Choose destination">⌄</button>
         </label>
+
+        <datalist id="release-destination-options">
+          <option value="New Park" />
+          <option value="Monash University" />
+          <option value="Clayton Station" />
+          <option value="Oakleigh" />
+        </datalist>
         <button class="find-button" type="submit">Find Safest Route</button>
       </form>
 

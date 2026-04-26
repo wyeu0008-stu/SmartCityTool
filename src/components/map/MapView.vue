@@ -4,6 +4,10 @@
     <div class="sidebar">
       <h2>Map Filters</h2>
 
+      <div class="layer" @click="locateUser">
+        📍 Current Location
+      </div>
+
       <div
         v-for="layer in layers"
         :key="layer.type"
@@ -40,6 +44,12 @@ const activeLayers = ref(['bike_parking'])
 let map
 let clusterGroup
 let bikeLaneLayer
+
+function locateUser() {
+  if (map) {
+    map.locate({ setView: true, maxZoom: 16 })
+  }
+}
 
 function loadBikeParkingFromGeoJSON() {
   fetch('/bike_parking.geojson')
@@ -286,13 +296,16 @@ onMounted(() => {
   // Successful positioning
 
   map.on('locationfound', (e) => {
-    L.circleMarker(e.latlng, {
-      radius: 6,
-      color: '#007AFF',
-      fillOpacity: 0.8
-    }).addTo(map)
+    L.marker(e.latlng)
+      .addTo(map)
       .bindPopup('You are here')
       .openPopup()
+
+    L.circle(e.latlng, {
+      radius: 100,
+      color: '#007AFF',
+      fillOpacity: 0.2
+    }).addTo(map)
   })
 
   // Location failed
