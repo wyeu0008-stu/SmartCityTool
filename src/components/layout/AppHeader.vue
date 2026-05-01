@@ -6,15 +6,24 @@
     </div>
 
     <nav class="nav-links" aria-label="Primary">
-      <router-link to="/" active-class="active">Home</router-link>
-      <router-link to="/map" active-class="active">Map</router-link>
-      <router-link to="/insights" active-class="active">Safety Insights</router-link>
+      <router-link :to="homeLink" active-class="active">Home</router-link>
+      <router-link :to="mapLink" active-class="active">Map</router-link>
+      <router-link :to="insightsLink" active-class="active">Safety Insights</router-link>
     </nav>
   </header>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
 const logoSrc = '/cycling.png'
+const route = useRoute()
+const isDevRoute = computed(() => route.path.startsWith('/dev'))
+
+const homeLink = computed(() => (isDevRoute.value ? '/dev/home' : '/'))
+const mapLink = computed(() => (isDevRoute.value ? '/dev/map' : '/map'))
+const insightsLink = computed(() => (isDevRoute.value ? '/dev/safety-insights' : '/insights'))
 </script>
 
 <style scoped>
