@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -104,11 +105,26 @@ function openMap() {
 
 <style scoped>
 .release-home {
+=======
+<template>
+  <main class="dev-page">
+    <DevPlannerHomeSection />
+  </main>
+</template>
+
+<script setup>
+import DevPlannerHomeSection from '../components/DevPlannerHomeSection.vue'
+</script>
+
+<style scoped>
+.dev-page {
+>>>>>>> origin/main
   min-height: calc(100vh - 79px);
   padding: 16px;
   background: #78a9f4;
 }
 
+<<<<<<< HEAD
 .hero-panel {
   position: relative;
   max-width: 1180px;
@@ -450,5 +466,11 @@ function openMap() {
   .find-button {
     width: 100%;
   }
+=======
+@media (max-width: 640px) {
+  .dev-page {
+    padding: 10px;
+  }
+>>>>>>> origin/main
 }
 </style>

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -891,11 +892,26 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 <style scoped>
 .release-map {
+=======
+<template>
+  <main class="dev-page">
+    <DevPlannerMapPanel />
+  </main>
+</template>
+
+<script setup>
+import DevPlannerMapPanel from '../components/DevPlannerMapPanel.vue'
+</script>
+
+<style scoped>
+.dev-page {
+>>>>>>> origin/main
   min-height: calc(100vh - 79px);
   padding: 16px;
   background: #78a9f4;
 }
 
+<<<<<<< HEAD
 
 .map-stage {
   position: relative;
@@ -1418,5 +1434,17 @@ watch(selectedDestinationId, refreshRoadRoute)
   .start-button {
     width: 100%;
   }
+=======
+@media (max-width: 980px) {
+  .dev-page {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dev-page {
+    padding: 10px;
+  }
+>>>>>>> origin/main
 }
 </style>

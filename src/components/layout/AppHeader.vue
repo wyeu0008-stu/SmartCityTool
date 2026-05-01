@@ -6,9 +6,15 @@
     </div>
 
     <nav class="nav-links" aria-label="Primary">
+<<<<<<< HEAD
       <router-link :to="homeLink" active-class="active">Home</router-link>
       <router-link :to="mapLink" active-class="active">Map</router-link>
       <router-link :to="insightsLink" active-class="active">Safety Insights</router-link>
+=======
+      <router-link :to="navBase.home" active-class="active">Home</router-link>
+      <router-link :to="navBase.map" active-class="active">Map</router-link>
+      <router-link :to="navBase.insights" active-class="active">Safety Insights</router-link>
+>>>>>>> origin/main
     </nav>
   </header>
 </template>
@@ -19,11 +25,30 @@ import { useRoute } from 'vue-router'
 
 const logoSrc = '/cycling.png'
 const route = useRoute()
+<<<<<<< HEAD
 const isDevRoute = computed(() => route.path.startsWith('/dev'))
 
 const homeLink = computed(() => (isDevRoute.value ? '/dev/home' : '/'))
 const mapLink = computed(() => (isDevRoute.value ? '/dev/map' : '/map'))
 const insightsLink = computed(() => (isDevRoute.value ? '/dev/safety-insights' : '/insights'))
+=======
+
+const navBase = computed(() => {
+  if (route.path.startsWith('/dev')) {
+    return {
+      home: '/dev',
+      map: '/dev/map',
+      insights: '/dev/insights'
+    }
+  }
+
+  return {
+    home: '/',
+    map: '/map',
+    insights: '/insights'
+  }
+})
+>>>>>>> origin/main
 </script>
 
 <style scoped>

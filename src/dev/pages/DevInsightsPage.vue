@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <script setup>
 import { computed } from 'vue'
 
@@ -47,11 +48,26 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
 
 <style scoped>
 .release-insights {
+=======
+<template>
+  <main class="dev-page">
+    <DevInsightsPanel />
+  </main>
+</template>
+
+<script setup>
+import DevInsightsPanel from '../components/DevInsightsPanel.vue'
+</script>
+
+<style scoped>
+.dev-page {
+>>>>>>> origin/main
   min-height: calc(100vh - 79px);
   padding: 16px;
   background: #78a9f4;
 }
 
+<<<<<<< HEAD
 .insights-shell {
   max-width: 1180px;
   min-height: 640px;
@@ -132,5 +148,11 @@ article p {
   article {
     min-height: 0;
   }
+=======
+@media (max-width: 820px) {
+  .dev-page {
+    padding: 10px;
+  }
+>>>>>>> origin/main
 }
 </style>
