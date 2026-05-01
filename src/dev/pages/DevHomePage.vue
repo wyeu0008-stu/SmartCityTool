@@ -37,10 +37,6 @@ function openMap() {
       </div>
 
       <form class="route-search" @submit.prevent="openMap">
-        <label class="field current-location">
-          <span class="pin-icon">📍</span>
-          <input value="Current Location" readonly />
-        </label>
         <label class="field">
           <span class="pin-icon hollow">🔍</span>
           <input
@@ -176,9 +172,6 @@ function openMap() {
   border-bottom: 1px solid #e3ebf5;
 }
 
-.field.current-location {
-  grid-template-columns: 24px 1fr;
-}
 
 .pin-icon {
   color: #5b94ef;
