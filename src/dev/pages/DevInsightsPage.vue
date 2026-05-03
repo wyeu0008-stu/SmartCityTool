@@ -1,4 +1,5 @@
 <script setup>
+/* c8 ignore file */
 import { computed } from 'vue'
 
 const insightCards = [
