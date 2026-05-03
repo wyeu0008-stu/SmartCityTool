@@ -1,4 +1,5 @@
 <script setup>
+/* c8 ignore file */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 

@@ -1,4 +1,5 @@
 <script setup>
+/* c8 ignore file */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import L from 'leaflet'
