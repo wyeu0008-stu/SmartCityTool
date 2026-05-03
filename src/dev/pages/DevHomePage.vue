@@ -28,7 +28,7 @@ function openMap() {
 </script>
 
 <template>
-  <main class="release-home">
+  <main class="release-home" data-test="dev-home-panel">
     <section class="hero-panel">
       <div class="hero-copy">
         <h1>SmartCycle Navigator</h1>

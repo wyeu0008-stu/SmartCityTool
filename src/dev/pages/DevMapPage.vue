@@ -286,7 +286,7 @@ async function searchDestination() {
 }
 
 function applyDestinationFromQuery() {
-  const queryDestination = typeof route.query.destination === 'string'
+  const queryDestination = typeof route?.query?.destination === 'string'
     ? route.query.destination.trim()
     : ''
 
@@ -756,7 +756,7 @@ onMounted(async () => {
   initializeMap()
   useRealCurrentLocationOnLoad()
 
-  if (route.query.showRoute === 'true' && destinationQuery.value.trim()) {
+  if (route?.query?.showRoute === 'true' && destinationQuery.value.trim()) {
     await searchDestination()
   } else {
     updateMapScene()
@@ -780,7 +780,7 @@ watch(selectedDestinationId, refreshRoadRoute)
 </script>
 
 <template>
-  <main class="release-map">
+<main class="release-map" data-test="dev-map-panel">
     <section class="map-stage" aria-label="SmartCycle route planner map">
       <div ref="mapContainer" class="map-canvas"></div>
 
