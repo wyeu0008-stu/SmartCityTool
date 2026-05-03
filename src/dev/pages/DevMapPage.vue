@@ -505,74 +505,52 @@ function showNearestBikeParking(userCoords) {
 }
 
 function focusCurrentLocation() {
-  if (!navigator.geolocation) {
-    isUsingRealLocation.value = false
-    updateMapScene()
+  if (!map) {
     return
   }
 
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const userCoords = [position.coords.latitude, position.coords.longitude]
-      userCurrentCoords.value = userCoords
-      isUsingRealLocation.value = true
+  map.once('locationfound', (event) => {
+    const userCoords = [event.latlng.lat, event.latlng.lng]
+    userCurrentCoords.value = userCoords
+    isUsingRealLocation.value = true
 
-      map.flyTo(userCoords, 14, { duration: 0.7 })
+    map.flyTo(userCoords, 14, { duration: 0.7 })
 
-      if (startMarker) {
-        map.removeLayer(startMarker)
-      }
-
-      refreshRoadRoute()
-
-      if (hasToggle('bikeParking')) {
-        showNearestBikeParking(userCoords)
-      }
-
-      if (hasToggle('toilets')) {
-        showNearbyFacilities('toilets', userCoords)
-      }
-
-      if (hasToggle('water')) {
-        showNearbyFacilities('water', userCoords)
-      }
-    },
-    () => {
-      isUsingRealLocation.value = false
-      updateMapScene()
+    if (startMarker) {
+      map.removeLayer(startMarker)
     }
-  )
+
+    refreshRoadRoute()
+
+    if (hasToggle('bikeParking')) {
+      showNearestBikeParking(userCoords)
+    }
+
+    if (hasToggle('toilets')) {
+      showNearbyFacilities('toilets', userCoords)
+    }
+
+    if (hasToggle('water')) {
+      showNearbyFacilities('water', userCoords)
+    }
+  })
+
+  map.once('locationerror', () => {
+    isUsingRealLocation.value = false
+    updateMapScene()
+  })
+
+  map.locate({
+    setView: false,
+    maxZoom: 14,
+    enableHighAccuracy: false,
+    timeout: 10000,
+    maximumAge: 60000
+  })
 }
 
 function useRealCurrentLocationOnLoad() {
-  if (!navigator.geolocation) {
-    updateMapScene()
-    return
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const userCoords = [position.coords.latitude, position.coords.longitude]
-      userCurrentCoords.value = userCoords
-      isUsingRealLocation.value = true
-      refreshRoadRoute()
-
-      if (hasToggle('bikeParking')) {
-        showNearestBikeParking(userCoords)
-      }
-
-      if (hasToggle('toilets')) {
-        showNearbyFacilities('toilets', userCoords)
-      }
-
-      if (hasToggle('water')) {
-        showNearbyFacilities('water', userCoords)
-      }
-    },
-    () => {
-      updateMapScene()
-    }
-  )
+  updateMapScene()
 }
 
 function createHtmlMarker(label, modifier = '') {
