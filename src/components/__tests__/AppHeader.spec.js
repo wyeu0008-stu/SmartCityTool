@@ -53,6 +53,7 @@ describe('AppHeader', () => {
     })
 
     const links = wrapper.findAll('a')
+    expect(wrapper.text()).toContain('Knackeredlad SmartCycle Navigator')
     expect(links[0].attributes('href')).toBe('/dev')
     expect(links[1].attributes('href')).toBe('/dev/map')
     expect(links[2].attributes('href')).toBe('/dev/insights')

@@ -22,7 +22,10 @@ const featuredTourismRoutes = computed(() => {
 })
 
 function openMap(target = '') {
-  const targetDestination = String(target || destination.value).trim()
+  const requestedDestination = typeof target === 'string'
+    ? target
+    : destination.value
+  const targetDestination = requestedDestination.trim()
 
   if (!targetDestination) {
     router.push('/dev/map')
