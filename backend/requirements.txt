@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pyodbc
+pymssql
 python-dotenv
 httpx
 joblib

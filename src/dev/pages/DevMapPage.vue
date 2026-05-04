@@ -54,7 +54,6 @@ const routeStats = ref({
   fastest: null,
   shortest: null
 })
-const routeWarnings = ref([])
 const DEFAULT_ACTIVE_TOGGLES = ['safeRoutes', 'bikeLanes']
 const activeToggles = ref([...DEFAULT_ACTIVE_TOGGLES])
 const showLayerControls = ref(false)
@@ -476,7 +475,6 @@ function resetRouteResults() {
     fastest: null,
     shortest: null
   }
-  routeWarnings.value = []
 }
 
 function normalizeSafetyScore(score) {
@@ -508,7 +506,15 @@ function toLeafletPath(pathCoordinates = []) {
     .map((point) => [Number(point.lat), Number(point.lng)])
 }
 
-function applyBackendRoutes(data) {
+function logRouteWarnings(warnings = []) {
+  warnings
+    .filter(Boolean)
+    .forEach((warning) => {
+      console.warn('[SmartCycle route]', warning)
+    })
+}
+
+function applyBackendRoutes(data, geometryOverride = null) {
   const nextRouteOptions = {
     safest: [],
     fastest: [],
@@ -528,11 +534,14 @@ function applyBackendRoutes(data) {
       return
     }
 
-    const path = toLeafletPath(routeItem.path_coordinates)
+    const overrideStats = geometryOverride?.stats?.[routeType]
+    const path = geometryOverride?.options?.[routeType]?.length
+      ? geometryOverride.options[routeType]
+      : toLeafletPath(routeItem.path_coordinates)
     nextRouteOptions[routeType] = path
     nextRouteStats[routeType] = {
-      distanceKm: Number((Number(routeItem.total_distance_m || 0) / 1000).toFixed(1)),
-      durationMin: Math.max(1, Math.round(Number(routeItem.estimated_duration_min || 0))),
+      distanceKm: overrideStats?.distanceKm ?? Number((Number(routeItem.total_distance_m || 0) / 1000).toFixed(1)),
+      durationMin: overrideStats?.durationMin ?? Math.max(1, Math.round(Number(routeItem.estimated_duration_min || 0))),
       safetyScore: normalizeSafetyScore(routeItem.safety_score),
       routeTypeLabel: routeTypeLabel(routeType),
       explanation: routeItem.explanation,
@@ -546,7 +555,7 @@ function applyBackendRoutes(data) {
 
   roadRouteOptions.value = nextRouteOptions
   routeStats.value = nextRouteStats
-  routeWarnings.value = data.warnings || []
+  logRouteWarnings(data.warnings || [])
 
   if (!nextRouteOptions[activeMode.value]?.length) {
     activeMode.value = nextRouteOptions.safest.length
@@ -580,10 +589,31 @@ async function loadModelRoadRoute() {
   })
 
   if (!response.ok) {
-    throw new Error(`Backend route API failed: ${response.status}`)
+    let detail = ''
+
+    try {
+      const errorPayload = await response.json()
+      detail = errorPayload?.detail ? ` ${errorPayload.detail}` : ''
+    } catch {
+      detail = ''
+    }
+
+    throw new Error(`Backend route API failed: ${response.status}.${detail}`)
   }
 
-  applyBackendRoutes(await response.json())
+  const backendRoutes = await response.json()
+  let liveGeometry = null
+
+  try {
+    liveGeometry = await fetchOsrmRouteOptions()
+  } catch (error) {
+    logRouteWarnings([
+      'Live route geometry unavailable; using database candidate route geometry.',
+      error?.message
+    ])
+  }
+
+  applyBackendRoutes(backendRoutes, liveGeometry)
 }
 
 async function loadRoadRoute() {
@@ -598,12 +628,97 @@ async function loadRoadRoute() {
       return
     } catch (error) {
       await loadOsrmRoadRoute()
-      routeWarnings.value = ['Backend route API unavailable; using existing route fallback.']
+      logRouteWarnings([
+        error?.message || 'Backend route API unavailable.',
+        'Using existing route fallback.'
+      ])
       return
     }
   }
 
   await loadOsrmRoadRoute()
+}
+
+async function fetchOsrmRouteOptions() {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
+    return null
+  }
+
+  const [startLat, startLng] = userCurrentCoords.value
+  const [endLat, endLng] = selectedDestination.value.coords
+
+  const response = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&alternatives=3`
+  )
+  const data = await response.json()
+  const routeResults = data.routes || []
+
+  if (!routeResults.length) {
+    throw new Error('OSRM did not return a drawable route.')
+  }
+
+  const cyclingSpeedKmh = 15
+  const formattedRoutes = routeResults.map((routeResult) => {
+    const distanceKm = Number((routeResult.distance / 1000).toFixed(1))
+    const path = routeResult.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+
+    return {
+      path,
+      routeKey: JSON.stringify(path.map(([lat, lng]) => [lat.toFixed(5), lng.toFixed(5)])),
+      distanceKm,
+      durationMin: Math.max(1, Math.round((distanceKm / cyclingSpeedKmh) * 60)),
+      osrmDurationMin: Math.max(1, Math.round(routeResult.duration / 60))
+    }
+  })
+
+  const uniqueRoutes = []
+  const routeKeys = new Set()
+
+  formattedRoutes.forEach((routeItem) => {
+    if (!routeKeys.has(routeItem.routeKey)) {
+      routeKeys.add(routeItem.routeKey)
+      uniqueRoutes.push(routeItem)
+    }
+  })
+
+  const firstRoute = uniqueRoutes[0]
+  const shortestRoute = [...uniqueRoutes].sort((a, b) => a.distanceKm - b.distanceKm)[0]
+  const fastestRoute = [...uniqueRoutes].sort((a, b) => a.durationMin - b.durationMin)[0]
+  const safestRoute = uniqueRoutes.length > 1
+    ? uniqueRoutes.find((routeItem) => routeItem !== shortestRoute && routeItem !== fastestRoute) || firstRoute
+    : firstRoute
+
+  const nextRouteOptions = {
+    safest: safestRoute?.path || [],
+    fastest: uniqueRoutes.length > 1 ? fastestRoute.path : [],
+    shortest: uniqueRoutes.length > 1 ? shortestRoute.path : []
+  }
+
+  const nextRouteStats = {
+    safest: safestRoute
+      ? {
+          distanceKm: safestRoute.distanceKm.toFixed(1),
+          durationMin: safestRoute.durationMin
+        }
+      : null,
+    fastest: uniqueRoutes.length > 1
+      ? {
+          distanceKm: fastestRoute.distanceKm.toFixed(1),
+          durationMin: fastestRoute.durationMin
+        }
+      : null,
+    shortest: uniqueRoutes.length > 1
+      ? {
+          distanceKm: shortestRoute.distanceKm.toFixed(1),
+          durationMin: shortestRoute.durationMin
+        }
+      : null
+  }
+
+  return {
+    options: nextRouteOptions,
+    stats: nextRouteStats
+  }
 }
 
 async function loadOsrmRoadRoute() {
@@ -612,84 +727,13 @@ async function loadOsrmRoadRoute() {
     return
   }
 
-  const [startLat, startLng] = userCurrentCoords.value
-  const [endLat, endLng] = selectedDestination.value.coords
-
   try {
-    const response = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&alternatives=3`
-    )
-    const data = await response.json()
-    const routeResults = data.routes || []
+    const osrmRoutes = await fetchOsrmRouteOptions()
 
-    if (!routeResults.length) {
-      resetRouteResults()
-      return
-    }
+    roadRouteOptions.value = osrmRoutes.options
+    routeStats.value = osrmRoutes.stats
 
-    const cyclingSpeedKmh = 15
-    const formattedRoutes = routeResults.map((routeResult) => {
-      const distanceKm = Number((routeResult.distance / 1000).toFixed(1))
-      const path = routeResult.geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
-      return {
-        path,
-        routeKey: JSON.stringify(path.map(([lat, lng]) => [lat.toFixed(5), lng.toFixed(5)])),
-        distanceKm,
-        durationMin: Math.max(1, Math.round((distanceKm / cyclingSpeedKmh) * 60)),
-        osrmDurationMin: Math.max(1, Math.round(routeResult.duration / 60))
-      }
-    })
-
-    const uniqueRoutes = []
-    const routeKeys = new Set()
-
-    formattedRoutes.forEach((routeItem) => {
-      if (!routeKeys.has(routeItem.routeKey)) {
-        routeKeys.add(routeItem.routeKey)
-        uniqueRoutes.push(routeItem)
-      }
-    })
-
-    const firstRoute = uniqueRoutes[0]
-    const shortestRoute = [...uniqueRoutes].sort((a, b) => a.distanceKm - b.distanceKm)[0]
-    const fastestRoute = [...uniqueRoutes].sort((a, b) => a.durationMin - b.durationMin)[0]
-    const safestRoute = uniqueRoutes.length > 1
-      ? uniqueRoutes.find((routeItem) => routeItem !== shortestRoute && routeItem !== fastestRoute) || firstRoute
-      : firstRoute
-
-    const nextRouteOptions = {
-      safest: safestRoute?.path || [],
-      fastest: uniqueRoutes.length > 1 ? fastestRoute.path : [],
-      shortest: uniqueRoutes.length > 1 ? shortestRoute.path : []
-    }
-
-    const nextRouteStats = {
-      safest: safestRoute
-        ? {
-            distanceKm: safestRoute.distanceKm.toFixed(1),
-            durationMin: safestRoute.durationMin
-          }
-        : null,
-      fastest: uniqueRoutes.length > 1
-        ? {
-            distanceKm: fastestRoute.distanceKm.toFixed(1),
-            durationMin: fastestRoute.durationMin
-          }
-        : null,
-      shortest: uniqueRoutes.length > 1
-        ? {
-            distanceKm: shortestRoute.distanceKm.toFixed(1),
-            durationMin: shortestRoute.durationMin
-          }
-        : null
-    }
-
-    roadRouteOptions.value = nextRouteOptions
-    routeStats.value = nextRouteStats
-    routeWarnings.value = []
-
-    if (!nextRouteOptions[activeMode.value]?.length) {
+    if (!osrmRoutes.options[activeMode.value]?.length) {
       activeMode.value = 'safest'
     }
   } catch (error) {
@@ -1255,10 +1299,6 @@ watch(selectedDestinationId, refreshRoadRoute)
             {{ availableRouteCount }} available route option{{ availableRouteCount === 1 ? '' : 's' }}
             <span v-if="availableRouteCount === 1"> · only one route returned by map service</span>
           </p>
-          <p v-if="routeWarnings.length" class="route-warning-note">
-            {{ routeWarnings[0] }}
-          </p>
-
           <div class="bottom-detail-grid">
             <div class="mini-score">
               <div class="shield">S</div>
@@ -1637,12 +1677,6 @@ watch(selectedDestinationId, refreshRoadRoute)
 .route-count-note {
   margin: 10px 0 0;
   color: #6e6e73;
-  font-size: 0.85rem;
-}
-
-.route-warning-note {
-  margin: 8px 0 0;
-  color: #a15c13;
   font-size: 0.85rem;
 }
 

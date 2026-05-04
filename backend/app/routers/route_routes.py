@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -44,10 +45,19 @@ def compare_routes(
     db: Session = Depends(get_db),
 ):
     service = RouteQueryService(db)
-    return service.compare_routes(
-        origin=payload.origin.dict(),
-        destination=payload.destination.dict(),
-    )
+    try:
+        return service.compare_routes(
+            origin=payload.origin.dict(),
+            destination=payload.destination.dict(),
+        )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Database route API unavailable. Check SQL Server connectivity "
+                f"and DB_DRIVER. Details: {exc.__class__.__name__}"
+            ),
+        ) from exc
 
 
 @router.get("/{route_id}")

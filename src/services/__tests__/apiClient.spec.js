@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../apiClient'
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
+
 describe('apiRequest', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -15,7 +17,7 @@ describe('apiRequest', () => {
 
     const result = await apiRequest('/status')
 
-    expect(global.fetch).toHaveBeenCalledWith('/status', {
+    expect(global.fetch).toHaveBeenCalledWith(`${apiBaseUrl}/status`, {
       headers: {
         'Content-Type': 'application/json'
       }
@@ -37,7 +39,7 @@ describe('apiRequest', () => {
       body: '{"a":1}'
     })
 
-    expect(global.fetch).toHaveBeenCalledWith('/routes', {
+    expect(global.fetch).toHaveBeenCalledWith(`${apiBaseUrl}/routes`, {
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer token'

@@ -164,11 +164,6 @@ class RouteQueryService:
         if not model_used and not segment_risk_model.available:
             warnings.append(segment_risk_model.error or "Segment risk model is unavailable.")
 
-        existing_types = {route["route_type"] for route in routes}
-        missing_types = [route_type for route_type in ROUTE_TYPES if route_type not in existing_types]
-        if missing_types:
-            warnings.append(f"Missing candidate route type(s): {', '.join(missing_types)}.")
-
         return {
             "origin": origin,
             "destination": destination,
@@ -181,7 +176,7 @@ class RouteQueryService:
 
     def _score_route_with_model(self, route: dict):
         feature_rows = [
-            segment["features"]
+            self._build_model_feature_row(segment["features"])
             for segment in route["segments"]
             if not segment["geometry_missing"] and segment.get("features")
         ]
@@ -246,6 +241,25 @@ class RouteQueryService:
                 len(high_risk_segments),
                 route["unmatched_segment_count"],
             ),
+        }
+
+    def _build_model_feature_row(self, features: dict):
+        length_m = float(features.get("length_m") or 0)
+        speed_limit = float(features.get("speed_limit") or 0)
+        vehicle_volume = features.get("avg_daily_vehicle_volume")
+        vehicle_volume_filled = float(vehicle_volume or 0)
+        length_km = length_m / 1000
+
+        return {
+            **features,
+            "length_km": length_km,
+            "is_high_speed": 1 if speed_limit >= 60 else 0,
+            "is_40_or_less": 1 if 0 < speed_limit <= 40 else 0,
+            "has_tram_context": features.get("has_tram_track") or 0,
+            "has_parking_context": features.get("has_onstreet_parking") or 0,
+            "risk_exposure_length": length_km * vehicle_volume_filled,
+            "avg_daily_vehicle_volume_filled": vehicle_volume_filled,
+            "vehicle_volume_missing": 1 if vehicle_volume is None else 0,
         }
 
     def _build_model_explanation(
