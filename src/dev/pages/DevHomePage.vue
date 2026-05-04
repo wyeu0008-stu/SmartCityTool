@@ -1,9 +1,10 @@
 <script setup>
 /* c8 ignore file */
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
 const destination = ref('')
 
 const tourismRoutes = [
@@ -26,14 +27,15 @@ function openMap(target = '') {
     ? target
     : destination.value
   const targetDestination = requestedDestination.trim()
+  const mapPath = route.path.startsWith('/dev') ? '/dev/map' : '/map'
 
   if (!targetDestination) {
-    router.push('/dev/map')
+    router.push(mapPath)
     return
   }
 
   router.push({
-    path: '/dev/map',
+    path: mapPath,
     query: {
       from: 'current-location',
       destination: targetDestination,
