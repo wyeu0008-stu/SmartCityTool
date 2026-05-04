@@ -6,16 +6,31 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const destination = ref('')
 
-const routeOptions = [
-  { id: 'a', name: 'Route A', label: 'Safest', score: 8.5, time: '18 mins', risk: 'Low', color: '#3c9d74' },
-  { id: 'b', name: 'Route B', label: 'Fastest', score: 6.7, time: '15 mins', risk: 'High', color: '#3f74c9' },
-  { id: 'c', name: 'Route C', label: 'Shortest', score: 5.8, time: '16 mins', risk: 'Medium', color: '#d4a62d' }
+const tourismRoutes = [
+  { id: 'yarra', name: 'Yarra River Ride', area: 'Southbank to Abbotsford', destination: 'Abbotsford Convent', time: '42 mins', distance: '11.2 km', vibe: 'River views', color: '#34c759' },
+  { id: 'gardens', name: 'Gardens Loop', area: 'Botanic Gardens and Shrine', destination: 'Royal Botanic Gardens Melbourne', time: '28 mins', distance: '7.4 km', vibe: 'Scenic calm', color: '#007aff' },
+  { id: 'docklands', name: 'Docklands Waterfront', area: 'CBD to Harbour Esplanade', destination: 'Harbour Esplanade Docklands', time: '24 mins', distance: '6.1 km', vibe: 'Waterfront', color: '#ff9f0a' },
+  { id: 'carlton', name: 'Carlton Culture Trail', area: 'State Library to Lygon Street', destination: 'Lygon Street Carlton', time: '22 mins', distance: '5.6 km', vibe: 'Food stops', color: '#af52de' },
+  { id: 'arts', name: 'Arts Precinct Spin', area: 'Fed Square to NGV', destination: 'National Gallery of Victoria', time: '18 mins', distance: '4.2 km', vibe: 'Landmarks', color: '#ff375f' },
+  { id: 'parkville', name: 'Parkville Green Link', area: 'University to Royal Park edge', destination: 'Royal Park Melbourne', time: '35 mins', distance: '9.5 km', vibe: 'Green route', color: '#30b0c7' }
 ]
 
-const safestRoute = computed(() => routeOptions[0])
+const featuredTourismRoutes = computed(() => {
+  return [...tourismRoutes]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+})
 
-function openMap() {
-  const targetDestination = destination.value.trim() || 'New Park'
+function openMap(target = '') {
+  const requestedDestination = typeof target === 'string'
+    ? target
+    : destination.value
+  const targetDestination = requestedDestination.trim()
+
+  if (!targetDestination) {
+    router.push('/dev/map')
+    return
+  }
 
   router.push({
     path: '/dev/map',
@@ -32,7 +47,7 @@ function openMap() {
   <main class="release-home" data-test="dev-home-panel">
     <section class="hero-panel">
       <div class="hero-copy">
-        <h1>SmartCycle Navigator</h1>
+        <h1>knackeredlad SmartCycle Navigator</h1>
         <p>A Smart Cycling Safety and Decision Support System</p>
         <p>Using Open Mobility Data</p>
       </div>
@@ -48,52 +63,42 @@ function openMap() {
         <button class="find-button" type="submit">Find Safest Route</button>
       </form>
 
-      <section class="recommendation-card" aria-label="Recommended safest route">
+      <section class="recommendation-card analysis-card" aria-label="Safety route analysis method">
         <div class="route-main">
           <div class="shield">S</div>
           <div>
-            <h2>Recommended Safest Route</h2>
-            <p>Route Type: Protected Lanes</p>
+            <h2>How SmartCycle Analyses Safety</h2>
+            <p>Each candidate route is scored from road-segment risk, crash history, traffic exposure, and cycling infrastructure.</p>
           </div>
         </div>
 
-        <div class="route-score">
-          <span>Safety Score</span>
-          <strong>{{ safestRoute.score }}</strong>
-          <span>/10</span>
-          <div class="score-bar">
-            <span :style="{ width: `${safestRoute.score * 10}%` }"></span>
-          </div>
-        </div>
-
-        <ul class="route-alerts">
-          <li><span class="warning">!</span> High traffic area ahead</li>
-          <li><span class="warning">!</span> Intersection with heavy traffic</li>
-          <li><span class="danger">!</span> Risk level comparison</li>
+        <ul class="route-alerts analysis-list">
+          <li><span class="warning">1</span> The backend reads ordered road segments for the route.</li>
+          <li><span class="warning">2</span> The local risk model estimates risk for each matched segment.</li>
+          <li><span class="danger">3</span> Route scores combine average risk, high-risk segments, and protected-lane coverage.</li>
         </ul>
 
         <div class="route-stats">
-          <button type="button" @click="openMap">Safety Heat &gt;</button>
-          <strong>8.5</strong>
-          <span>18 mins</span>
-          <small>Low</small>
+          <button type="button" @click="openMap">Open Safety Map</button>
+          <strong>AI</strong>
+          <span>Segment model</span>
+          <small>Database backed</small>
         </div>
       </section>
 
-      <section class="compare-section" aria-label="Compare routes">
-        <h2>Compare Routes</h2>
+      <section class="compare-section" aria-label="Popular cycling tourism routes">
+        <h2>Popular Cycling Trips</h2>
         <div class="compare-grid">
-          <article v-for="route in routeOptions" :key="route.id" class="compare-card">
-            <h3>{{ route.name }} <span>({{ route.label }})</span></h3>
+          <article v-for="route in featuredTourismRoutes" :key="route.id" class="compare-card">
+            <h3>{{ route.name }} <span>{{ route.area }}</span></h3>
             <div class="metric-row">
-              <strong :style="{ background: route.color }">{{ route.score }}</strong>
+              <strong :style="{ background: route.color }">{{ route.vibe }}</strong>
               <span>{{ route.time }}</span>
-              <small>{{ route.risk }}</small>
+              <small>{{ route.distance }}</small>
             </div>
-            <button type="button" :style="{ background: route.color }" @click="openMap">View Route</button>
+            <button type="button" :style="{ background: route.color }" @click="openMap(route.destination)">Plan This Ride</button>
           </article>
         </div>
-        <button class="compare-button" type="button" @click="openMap">Compare All Routes</button>
       </section>
     </section>
   </main>
@@ -102,29 +107,34 @@ function openMap() {
 <style scoped>
 .release-home {
   min-height: calc(100vh - 79px);
-  padding: 16px;
-  background: #78a9f4;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(232, 238, 247, 0.98)),
+    #f5f5f7;
+  color: #1d1d1f;
 }
 
 .hero-panel {
   position: relative;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 40px 24px 28px;
+  min-height: calc(100vh - 116px);
+  padding: 54px 28px 30px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 30px;
   background:
-    linear-gradient(rgba(235, 244, 255, 0.7), rgba(235, 244, 255, 0.62)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 248, 252, 0.72)),
     url('/tomi-vadasz-SBKJ47obEHY-unsplash.jpg') center / cover;
-  box-shadow: 0 22px 58px rgba(31, 68, 128, 0.24);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
 }
 
 .hero-panel::after {
   content: "";
   position: absolute;
-  inset: auto 0 0;
-  height: 170px;
-  background: linear-gradient(rgba(255, 255, 255, 0), rgba(214, 234, 255, 0.9));
+  inset: auto 0 0 0;
+  height: 56%;
+  background: linear-gradient(rgba(255, 255, 255, 0), rgba(247, 249, 252, 0.96));
   pointer-events: none;
 }
 
@@ -140,47 +150,62 @@ function openMap() {
 
 .hero-copy {
   text-align: center;
-  color: #24406f;
+  color: #1d1d1f;
 }
 
 .hero-copy h1 {
   margin: 0 0 10px;
-  font-size: clamp(2rem, 4vw, 3.1rem);
-  line-height: 1.08;
+  font-size: clamp(2.5rem, 7vw, 5.7rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 0.96;
 }
 
 .hero-copy p {
-  margin: 5px 0;
-  font-size: 1.05rem;
+  max-width: 560px;
+  margin: 8px auto 0;
+  color: #5f6368;
+  font-size: clamp(1.04rem, 2vw, 1.28rem);
+  line-height: 1.4;
 }
 
 .route-search {
   display: grid;
-  gap: 8px;
-  margin-top: 34px;
-  padding: 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 30px rgba(31, 68, 128, 0.12);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  max-width: 680px;
+  margin-top: 38px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(22px);
 }
 
 .field {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: 22px 1fr;
   align-items: center;
-  min-height: 46px;
-  padding: 0 8px;
-  border-bottom: 1px solid #e3ebf5;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: rgba(245, 245, 247, 0.82);
 }
 
 
 .pin-icon {
-  color: #5b94ef;
-  font-size: 0.9rem;
+  color: #0071e3;
+  font-size: 0;
 }
 
-.pin-icon.hollow {
-  color: #6f9be0;
+.pin-icon::before {
+  content: "";
+  display: block;
+  width: 9px;
+  height: 9px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
 }
 
 .field input {
@@ -188,7 +213,8 @@ function openMap() {
   min-width: 0;
   border: 0;
   background: transparent;
-  color: #526780;
+  color: #1d1d1f;
+  font-size: 1rem;
 }
 
 .field input:focus {
@@ -201,7 +227,7 @@ function openMap() {
 .compare-card button,
 .route-stats button {
   border: 0;
-  border-radius: 5px;
+  border-radius: 999px;
   color: #ffffff;
   cursor: pointer;
   font-weight: 800;
@@ -209,7 +235,8 @@ function openMap() {
 
 .find-button {
   min-height: 48px;
-  background: #2f855f;
+  padding: 0 22px;
+  background: #0071e3;
   font-size: 1rem;
 }
 
@@ -217,11 +244,17 @@ function openMap() {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
   gap: 18px 24px;
-  margin-top: 28px;
-  padding: 20px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 34px rgba(31, 68, 128, 0.14);
+  margin-top: 34px;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.11);
+  backdrop-filter: blur(22px);
+}
+
+.analysis-card {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .route-main {
@@ -236,8 +269,8 @@ function openMap() {
   place-items: center;
   width: 52px;
   height: 52px;
-  border-radius: 8px;
-  background: #3d9b72;
+  border-radius: 15px;
+  background: #34c759;
   color: #ffffff;
   font-size: 1.6rem;
   font-weight: 900;
@@ -246,22 +279,22 @@ function openMap() {
 .route-main h2,
 .compare-section h2 {
   margin: 0;
-  color: #304765;
+  color: #1d1d1f;
   font-size: 1.15rem;
 }
 
 .route-main p {
   margin: 8px 0 0;
-  color: #6b7a8c;
+  color: #6e6e73;
 }
 
 .route-score {
-  color: #304765;
+  color: #1d1d1f;
 }
 
 .route-score strong {
   margin-left: 12px;
-  color: #2f855f;
+  color: #34c759;
   font-size: 1.45rem;
 }
 
@@ -270,13 +303,13 @@ function openMap() {
   margin-top: 12px;
   overflow: hidden;
   border-radius: 99px;
-  background: #dde7f2;
+  background: #e8eaed;
 }
 
 .score-bar span {
   display: block;
   height: 100%;
-  background: #3d9b72;
+  background: #34c759;
 }
 
 .route-alerts {
@@ -285,15 +318,46 @@ function openMap() {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: #435772;
+  color: #424245;
+}
+
+.analysis-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.analysis-list li {
+  min-height: 92px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(245, 245, 247, 0.72);
+  line-height: 1.45;
 }
 
 .warning {
-  color: #d6a42c;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ff9f0a;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .danger {
-  color: #d76666;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ff375f;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .route-stats {
@@ -306,23 +370,23 @@ function openMap() {
 
 .route-stats button {
   padding: 10px 14px;
-  background: #edf4ff;
-  color: #3765a9;
+  background: rgba(0, 113, 227, 0.12);
+  color: #0066cc;
 }
 
 .route-stats strong {
   padding: 9px 14px;
-  border-radius: 5px;
-  background: #2f855f;
+  border-radius: 999px;
+  background: #34c759;
   color: #ffffff;
 }
 
 .route-stats small {
-  color: #3d9b72;
+  color: #34c759;
 }
 
 .compare-section {
-  margin-top: 28px;
+  margin-top: 32px;
   text-align: center;
 }
 
@@ -334,21 +398,27 @@ function openMap() {
 }
 
 .compare-card {
-  padding: 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
   text-align: left;
-  box-shadow: 0 12px 28px rgba(31, 68, 128, 0.12);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(18px);
 }
 
 .compare-card h3 {
   margin: 0 0 14px;
-  color: #304765;
+  color: #1d1d1f;
   font-size: 1rem;
 }
 
 .compare-card h3 span {
-  color: #7b8da3;
+  display: block;
+  margin-top: 5px;
+  color: #6e6e73;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .metric-row {
@@ -356,12 +426,12 @@ function openMap() {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  color: #40556f;
+  color: #424245;
 }
 
 .metric-row strong {
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: 999px;
   color: #ffffff;
 }
 
@@ -378,7 +448,7 @@ function openMap() {
 .compare-button {
   margin-top: 16px;
   padding: 11px 22px;
-  background: #356fc8;
+  background: #1d1d1f;
 }
 
 @media (max-width: 900px) {
@@ -386,23 +456,29 @@ function openMap() {
   .compare-grid {
     grid-template-columns: 1fr;
   }
+
+  .analysis-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
   .release-home {
-    padding: 10px;
+    padding: 0;
   }
 
   .hero-panel {
-    padding: 26px 14px 20px;
+    min-height: calc(100vh - 96px);
+    padding: 34px 14px 18px;
+    border-radius: 0 0 28px 28px;
   }
 
   .hero-copy {
-    text-align: left;
+    text-align: center;
   }
 
   .hero-copy h1 {
-    font-size: 2rem;
+    font-size: 3rem;
   }
 
   .hero-copy p {
@@ -415,9 +491,14 @@ function openMap() {
     padding: 14px;
   }
 
+  .route-search {
+    grid-template-columns: 1fr;
+    border-radius: 20px;
+  }
+
   .field {
     min-height: 44px;
-    padding: 0 4px;
+    padding: 0 12px;
   }
 
   .route-main {

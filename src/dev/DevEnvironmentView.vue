@@ -135,19 +135,23 @@ const mapPlan = computed(() => createMapPlan('Current Location', 'New Park', rec
 <style scoped>
 .dev-page {
   min-height: calc(100vh - 80px);
-  padding: 24px;
-  background: #78a9f4;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(232, 238, 247, 0.98)),
+    #f5f5f7;
 }
 
 .dev-shell {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  min-height: calc(100vh - 116px);
+  padding: 54px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 30px;
   background:
-    linear-gradient(rgba(235, 244, 255, 0.82), rgba(235, 244, 255, 0.74)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 248, 252, 0.74)),
     url('/tomi-vadasz-SBKJ47obEHY-unsplash.jpg') center / cover;
-  box-shadow: 0 22px 58px rgba(31, 68, 128, 0.24);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
 }
 
 .dev-copy {
@@ -156,7 +160,7 @@ const mapPlan = computed(() => createMapPlan('Current Location', 'New Park', rec
 
 .eyebrow {
   margin: 0 0 12px;
-  color: #2f6f4f;
+  color: #0071e3;
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -164,15 +168,16 @@ const mapPlan = computed(() => createMapPlan('Current Location', 'New Park', rec
 
 h1 {
   margin: 0;
-  color: #1f2d3d;
-  font-size: clamp(2.2rem, 5vw, 4rem);
-  line-height: 1.05;
+  color: #1d1d1f;
+  font-size: clamp(2.7rem, 7vw, 5.6rem);
+  font-weight: 800;
+  line-height: 0.96;
 }
 
 p {
   max-width: 680px;
   margin: 18px 0 0;
-  color: #5a6b7b;
+  color: #6e6e73;
   font-size: 1.08rem;
   line-height: 1.7;
 }
@@ -189,9 +194,11 @@ p {
 .list-panel,
 .json-panel {
   padding: 22px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 30px rgba(31, 68, 128, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.11);
+  backdrop-filter: blur(22px);
 }
 
 .json-panel {
@@ -200,14 +207,14 @@ p {
 
 h2 {
   margin: 0 0 16px;
-  color: #304765;
+  color: #1d1d1f;
 }
 
 .segmented {
   display: flex;
   overflow: hidden;
-  border-radius: 6px;
-  background: #edf3fb;
+  border-radius: 16px;
+  background: rgba(245, 245, 247, 0.95);
 }
 
 .segmented button {
@@ -215,13 +222,13 @@ h2 {
   min-height: 38px;
   border: 0;
   background: transparent;
-  color: #506985;
+  color: #6e6e73;
   text-transform: capitalize;
   cursor: pointer;
 }
 
 .segmented button.active {
-  background: #5b94ef;
+  background: #1d1d1f;
   color: #ffffff;
   font-weight: 800;
 }
@@ -230,7 +237,7 @@ h2 {
   display: grid;
   gap: 10px;
   margin-top: 22px;
-  color: #506985;
+  color: #424245;
   font-weight: 800;
 }
 
@@ -245,8 +252,8 @@ h2 {
   place-items: center;
   width: 58px;
   height: 58px;
-  border-radius: 8px;
-  background: #3d9b72;
+  border-radius: 15px;
+  background: #34c759;
   color: #ffffff;
   font-size: 2rem;
   font-weight: 900;
@@ -254,7 +261,7 @@ h2 {
 
 .route-card h3 {
   margin: 0;
-  color: #304765;
+  color: #1d1d1f;
 }
 
 .summary-list {
@@ -269,7 +276,7 @@ li {
   justify-content: space-between;
   gap: 18px;
   margin: 0;
-  color: #526780;
+  color: #424245;
 }
 
 ol {
@@ -283,14 +290,20 @@ pre {
   max-height: 280px;
   overflow: auto;
   padding: 16px;
-  border-radius: 8px;
-  background: #1f2d3d;
-  color: #d6e7ff;
+  border-radius: 18px;
+  background: #1d1d1f;
+  color: #f5f5f7;
 }
 
 @media (max-width: 820px) {
+  .dev-page {
+    padding: 0;
+  }
+
   .dev-shell {
-    padding: 28px 16px;
+    min-height: calc(100vh - 96px);
+    padding: 40px 14px 18px;
+    border-radius: 0 0 28px 28px;
   }
 
   .prototype-grid {

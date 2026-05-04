@@ -2,7 +2,7 @@
   <header class="app-header">
     <div class="brand">
       <img :src="logoSrc" alt="logo" class="logo" />
-      <span class="brand-text">SmartCycle Navigator</span>
+      <span class="brand-text">{{ brandName }}</span>
     </div>
 
     <nav class="nav-links" aria-label="Primary">
@@ -19,6 +19,12 @@ import { useRoute } from 'vue-router'
 
 const logoSrc = '/cycling.png'
 const route = useRoute()
+
+const brandName = computed(() =>
+  route.path.startsWith('/dev')
+    ? 'Knackeredlad SmartCycle Navigator'
+    : 'SmartCycle Navigator'
+)
 
 const navBase = computed(() => {
   if (route.path.startsWith('/dev')) {
