@@ -5,6 +5,9 @@ import DevHomePage from '../pages/DevHomePage.vue'
 const push = vi.fn()
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    path: '/dev'
+  }),
   useRouter: () => ({
     push
   })
