@@ -10,6 +10,7 @@ const mockMap = {
   setView: vi.fn().mockReturnThis(),
   fitBounds: vi.fn().mockReturnThis(),
   flyTo: vi.fn(),
+  invalidateSize: vi.fn(),
   removeLayer: vi.fn(),
   remove: vi.fn(),
   setMaxBounds: vi.fn(),
