@@ -54,7 +54,6 @@ const routeStats = ref({
   fastest: null,
   shortest: null
 })
-const routeWarnings = ref([])
 const DEFAULT_ACTIVE_TOGGLES = ['safeRoutes', 'bikeLanes']
 const activeToggles = ref([...DEFAULT_ACTIVE_TOGGLES])
 const showLayerControls = ref(false)
@@ -476,7 +475,6 @@ function resetRouteResults() {
     fastest: null,
     shortest: null
   }
-  routeWarnings.value = []
 }
 
 function normalizeSafetyScore(score) {
@@ -506,6 +504,14 @@ function toLeafletPath(pathCoordinates = []) {
   return pathCoordinates
     .filter((point) => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)))
     .map((point) => [Number(point.lat), Number(point.lng)])
+}
+
+function logRouteWarnings(warnings = []) {
+  warnings
+    .filter(Boolean)
+    .forEach((warning) => {
+      console.warn('[SmartCycle route]', warning)
+    })
 }
 
 function applyBackendRoutes(data) {
@@ -546,7 +552,7 @@ function applyBackendRoutes(data) {
 
   roadRouteOptions.value = nextRouteOptions
   routeStats.value = nextRouteStats
-  routeWarnings.value = data.warnings || []
+  logRouteWarnings(data.warnings || [])
 
   if (!nextRouteOptions[activeMode.value]?.length) {
     activeMode.value = nextRouteOptions.safest.length
@@ -580,7 +586,16 @@ async function loadModelRoadRoute() {
   })
 
   if (!response.ok) {
-    throw new Error(`Backend route API failed: ${response.status}`)
+    let detail = ''
+
+    try {
+      const errorPayload = await response.json()
+      detail = errorPayload?.detail ? ` ${errorPayload.detail}` : ''
+    } catch {
+      detail = ''
+    }
+
+    throw new Error(`Backend route API failed: ${response.status}.${detail}`)
   }
 
   applyBackendRoutes(await response.json())
@@ -598,7 +613,10 @@ async function loadRoadRoute() {
       return
     } catch (error) {
       await loadOsrmRoadRoute()
-      routeWarnings.value = ['Backend route API unavailable; using existing route fallback.']
+      logRouteWarnings([
+        error?.message || 'Backend route API unavailable.',
+        'Using existing route fallback.'
+      ])
       return
     }
   }
@@ -687,7 +705,6 @@ async function loadOsrmRoadRoute() {
 
     roadRouteOptions.value = nextRouteOptions
     routeStats.value = nextRouteStats
-    routeWarnings.value = []
 
     if (!nextRouteOptions[activeMode.value]?.length) {
       activeMode.value = 'safest'
@@ -1255,10 +1272,6 @@ watch(selectedDestinationId, refreshRoadRoute)
             {{ availableRouteCount }} available route option{{ availableRouteCount === 1 ? '' : 's' }}
             <span v-if="availableRouteCount === 1"> · only one route returned by map service</span>
           </p>
-          <p v-if="routeWarnings.length" class="route-warning-note">
-            {{ routeWarnings[0] }}
-          </p>
-
           <div class="bottom-detail-grid">
             <div class="mini-score">
               <div class="shield">S</div>
@@ -1637,12 +1650,6 @@ watch(selectedDestinationId, refreshRoadRoute)
 .route-count-note {
   margin: 10px 0 0;
   color: #6e6e73;
-  font-size: 0.85rem;
-}
-
-.route-warning-note {
-  margin: 8px 0 0;
-  color: #a15c13;
   font-size: 0.85rem;
 }
 

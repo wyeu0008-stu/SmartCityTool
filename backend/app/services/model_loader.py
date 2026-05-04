@@ -117,9 +117,15 @@ class SegmentRiskModel:
 
     def _unwrap_model(self, loaded):
         if isinstance(loaded, dict):
-            model = loaded.get("model") or loaded.get("pipeline") or loaded.get("estimator")
+            model = (
+                loaded.get("model")
+                or loaded.get("pipeline")
+                or loaded.get("estimator")
+                or loaded.get("crash_classifier")
+            )
             feature_columns = (
                 loaded.get("feature_columns")
+                or loaded.get("feature_cols")
                 or loaded.get("features")
                 or loaded.get("feature_names")
             )

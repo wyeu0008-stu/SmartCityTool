@@ -11,15 +11,22 @@ DB_PORT = os.getenv("DB_PORT", "1433")
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_DIALECT = os.getenv("DB_DIALECT", "pyodbc").lower()
 DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
 
-connection_string = (
-    f"mssql+pyodbc://{DB_USER}:{quote_plus(DB_PASSWORD)}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    f"?driver={quote_plus(DB_DRIVER)}"
-    f"&Encrypt=yes"
-    f"&TrustServerCertificate=yes"
-)
+if DB_DIALECT == "pymssql":
+    connection_string = (
+        f"mssql+pymssql://{DB_USER}:{quote_plus(DB_PASSWORD)}"
+        f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
+else:
+    connection_string = (
+        f"mssql+pyodbc://{DB_USER}:{quote_plus(DB_PASSWORD)}"
+        f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        f"?driver={quote_plus(DB_DRIVER)}"
+        f"&Encrypt=yes"
+        f"&TrustServerCertificate=yes"
+    )
 
 engine = create_engine(
     connection_string,
