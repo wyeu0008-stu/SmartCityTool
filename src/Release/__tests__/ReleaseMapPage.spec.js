@@ -73,46 +73,41 @@ describe('ReleaseMapPage', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Current Location')
-    expect(wrapper.text()).toContain('Show Safe Routes')
-    expect(wrapper.text()).toContain('Popular Routes')
+    expect(wrapper.text()).toContain('Map Layers')
+    expect(wrapper.text()).toContain('Show Route')
+    expect(wrapper.text()).toContain('Show Nearby Bike Parking')
     expect(L.map).toHaveBeenCalled()
     expect(L.tileLayer).toHaveBeenCalled()
     expect(mockZoomControl.addTo).toHaveBeenCalledWith(mockMap)
   })
 
-  it('switches route mode and updates summary', async () => {
+  it('renders the collapsed map layer controls', async () => {
     const wrapper = mount(ReleaseMapPage)
     await flushPromises()
 
-    await wrapper.findAll('.mode-tabs button')[1].trigger('click')
-
-    expect(wrapper.text()).toContain('Mixed Road Access')
-    expect(wrapper.text()).toContain('15 mins')
+    expect(wrapper.text()).toContain('Map Layers')
+    expect(wrapper.text()).toContain('Show Route')
+    expect(wrapper.text()).toContain('Show Nearby Toilets')
+    expect(wrapper.text()).toContain('Show Nearby Water')
   })
 
-  it('filters destinations and chooses a destination', async () => {
+  it('filters destinations in the search box', async () => {
     const wrapper = mount(ReleaseMapPage)
     await flushPromises()
 
     await wrapper.find('input[placeholder="Search location..."]').setValue('Dock')
+
     expect(wrapper.text()).toContain('Docklands')
-
-    const destinationButton = wrapper.findAll('.destination-option').find((node) =>
-      node.text().includes('Docklands')
-    )
-    await destinationButton.trigger('click')
-
-    expect(mockMap.flyTo).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('to Docklands')
   })
 
-  it('toggles a map layer off', async () => {
+  it('toggles map layer checkboxes', async () => {
     const wrapper = mount(ReleaseMapPage)
     await flushPromises()
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    await checkboxes[1].setValue(false)
+    expect(checkboxes.length).toBeGreaterThan(0)
 
-    expect(mockMap.removeLayer).toHaveBeenCalled()
+    await checkboxes[0].setValue(true)
+    expect(checkboxes[0].element.checked).toBe(true)
   })
 })

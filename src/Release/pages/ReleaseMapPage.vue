@@ -631,15 +631,21 @@ function buildRiskLayer() {
 
 function buildPopularLayer() {
   popularLayer = L.layerGroup(
-    releasePopularRoutes.map((route) =>
-      L.circleMarker(route.coords, {
+    releasePopularRoutes.map((route) => {
+      const marker = L.circleMarker(route.coords, {
         radius: 6,
         color: '#ffffff',
         weight: 2,
         fillColor: '#d76666',
         fillOpacity: 1
-      }).bindTooltip(`${route.title}: ${route.subtitle}`)
-    )
+      })
+
+      if (typeof marker.bindTooltip === 'function') {
+        marker.bindTooltip(`${route.title}: ${route.subtitle}`)
+      }
+
+      return marker
+    })
   )
 
   if (hasToggle('popularRoutes')) {

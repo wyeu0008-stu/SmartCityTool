@@ -14,7 +14,7 @@ describe('ReleaseHomePage', () => {
   it('renders planner hero and compare cards', () => {
     const wrapper = mount(ReleaseHomePage)
 
-    expect(wrapper.text()).toContain('SmartCycle Navigator')
+    expect(wrapper.text()).toContain('SafeSpin Melbourne')
     expect(wrapper.text()).toContain('Find Safest Route')
     expect(wrapper.text()).toContain('Recommended Safest Route')
     expect(wrapper.findAll('.compare-card')).toHaveLength(3)
@@ -27,7 +27,14 @@ describe('ReleaseHomePage', () => {
     await wrapper.find('form').trigger('submit.prevent')
 
     expect(wrapper.find('input[placeholder="Enter Destination"]').element.value).toBe('Docklands')
-    expect(push).toHaveBeenCalledWith('/map')
+    expect(push).toHaveBeenCalledWith({
+      path: '/map',
+      query: {
+        from: 'current-location',
+        destination: 'Docklands',
+        showRoute: 'true'
+      }
+    })
   })
 
   it('navigates to map when compare button is clicked', async () => {
@@ -35,6 +42,13 @@ describe('ReleaseHomePage', () => {
 
     await wrapper.find('.compare-button').trigger('click')
 
-    expect(push).toHaveBeenCalledWith('/map')
+    expect(push).toHaveBeenCalledWith({
+      path: '/map',
+      query: {
+        from: 'current-location',
+        destination: 'New Park',
+        showRoute: 'true'
+      }
+    })
   })
 })

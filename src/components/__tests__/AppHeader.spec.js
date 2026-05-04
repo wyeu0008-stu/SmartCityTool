@@ -30,7 +30,7 @@ describe('AppHeader', () => {
     })
 
     expect(wrapper.exists()).toBe(true)
-    expect(wrapper.text()).toContain('SmartCycle Navigator')
+    expect(wrapper.text()).toContain('SafeSpin Melbourne')
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Map')
     expect(wrapper.text()).toContain('Safety Insights')
