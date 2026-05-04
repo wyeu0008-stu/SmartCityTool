@@ -11,6 +11,7 @@ export const devRoutes = [
   {
     path: '/dev',
     component: DevHomePage,
+    alias: '/dev/home',
     meta: protectedRoute
   },
   {
@@ -22,6 +23,7 @@ export const devRoutes = [
   {
     path: '/dev/insights',
     component: DevInsightsPage,
+    alias: '/dev/safety-insights',
     meta: protectedRoute
   },
   {

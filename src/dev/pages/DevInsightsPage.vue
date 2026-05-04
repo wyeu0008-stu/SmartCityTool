@@ -49,25 +49,28 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
 <style scoped>
 .release-insights {
   min-height: calc(100vh - 79px);
-  padding: 16px;
-  background: #78a9f4;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(232, 238, 247, 0.98)),
+    #f5f5f7;
 }
 
 .insights-shell {
   max-width: 1180px;
-  min-height: 640px;
+  min-height: calc(100vh - 116px);
   margin: 0 auto;
-  padding: 40px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  padding: 58px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 30px;
   background:
-    linear-gradient(rgba(235, 244, 255, 0.82), rgba(235, 244, 255, 0.74)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 248, 252, 0.74)),
     url('/tomi-vadasz-SBKJ47obEHY-unsplash.jpg') center / cover;
-  box-shadow: 0 22px 58px rgba(31, 68, 128, 0.24);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
 }
 
 .eyebrow {
   margin: 0 0 10px;
-  color: #2f6f4f;
+  color: #0071e3;
   font-size: 0.8rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -75,14 +78,16 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
 
 h1 {
   margin: 0;
-  color: #24406f;
-  font-size: clamp(2.3rem, 5vw, 4rem);
-  line-height: 1.08;
+  max-width: 760px;
+  color: #1d1d1f;
+  font-size: clamp(2.8rem, 7vw, 5.8rem);
+  font-weight: 800;
+  line-height: 0.96;
 }
 
 .date-text {
-  color: #526780;
-  font-size: 1.05rem;
+  color: #6e6e73;
+  font-size: 1.14rem;
 }
 
 .insight-grid {
@@ -95,35 +100,39 @@ h1 {
 article {
   min-height: 190px;
   padding: 24px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 30px rgba(31, 68, 128, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.11);
+  backdrop-filter: blur(22px);
 }
 
 article span {
-  color: #526780;
+  color: #6e6e73;
   font-weight: 800;
 }
 
 article strong {
   display: block;
   margin-top: 16px;
-  color: #2f855f;
-  font-size: 2rem;
+  color: #1d1d1f;
+  font-size: 2.25rem;
 }
 
 article p {
-  color: #526780;
+  color: #6e6e73;
   line-height: 1.6;
 }
 
 @media (max-width: 820px) {
   .release-insights {
-    padding: 10px;
+    padding: 0;
   }
 
   .insights-shell {
-    padding: 28px 14px;
+    min-height: calc(100vh - 96px);
+    padding: 40px 14px 18px;
+    border-radius: 0 0 28px 28px;
   }
 
   .insight-grid {

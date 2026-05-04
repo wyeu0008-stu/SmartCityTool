@@ -17,6 +17,15 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const USE_MODEL_ROUTES = import.meta.env.VITE_USE_MODEL_ROUTES === 'true'
+const MELBOURNE_CITY_BOUNDS = {
+  south: -37.855,
+  west: 144.895,
+  north: -37.775,
+  east: 145.015
+}
+const MELBOURNE_CITY_CENTER = [-37.8136, 144.9631]
 
 function goToDevHome() {
   router.push('/dev/home')
@@ -30,9 +39,11 @@ function goToDevInsights() {
   router.push('/dev/safety-insights')
 }
 const activeMode = ref('safest')
+const originQuery = ref('Current Location')
 const destinationQuery = ref('')
-const selectedDestinationId = ref('new-park')
+const selectedDestinationId = ref('')
 const customDestination = ref(null)
+const locationWarning = ref('')
 const roadRouteOptions = ref({
   safest: [],
   fastest: [],
@@ -43,11 +54,31 @@ const routeStats = ref({
   fastest: null,
   shortest: null
 })
-const activeToggles = ref([])
+const routeWarnings = ref([])
+const DEFAULT_ACTIVE_TOGGLES = ['safeRoutes', 'bikeLanes']
+const activeToggles = ref([...DEFAULT_ACTIVE_TOGGLES])
 const showLayerControls = ref(false)
 const showRouteDetails = ref(false)
+const routeVisuals = {
+  safest: {
+    color: '#34c759',
+    halo: '#ffffff',
+    label: 'Safest'
+  },
+  fastest: {
+    color: '#007aff',
+    halo: '#ffffff',
+    label: 'Fastest'
+  },
+  shortest: {
+    color: '#ff9f0a',
+    halo: '#ffffff',
+    label: 'Shortest'
+  }
+}
 const mapToggles = computed(() => [
   { key: 'safeRoutes', label: 'Show Route', color: '#45a875' },
+  { key: 'bikeLanes', label: 'Show Dedicated Bike Lanes', color: '#00c7be' },
   { key: 'bikeParking', label: 'Show Nearby Bike Parking', color: '#1f4e79' },
   { key: 'toilets', label: 'Show Nearby Toilets', color: '#8b5cf6' },
   { key: 'water', label: 'Show Nearby Water', color: '#0ea5e9' }
@@ -60,8 +91,10 @@ let safeZonesLayer
 let riskLayer
 let popularLayer
 let parkingLayer
+let bikeLaneLayer
 let toiletLayer
 let waterLayer
+let cityBoundaryLayer
 let startMarker
 let destinationMarker
 
@@ -86,10 +119,11 @@ const filteredDestinations = computed(() => {
 })
 
 const selectedDestination = computed(() => {
-  return customDestination.value || destinationOptions.value.find((location) => location.id === selectedDestinationId.value)
+  return customDestination.value || destinationOptions.value.find((location) => location.id === selectedDestinationId.value) || null
 })
 
 const activeProfile = computed(() => releaseRouteProfiles[activeMode.value])
+const activeRouteVisual = computed(() => routeVisuals[activeMode.value] || routeVisuals.safest)
 
 const activeAlerts = computed(() => releaseRiskAlerts[activeMode.value] || [])
 
@@ -97,17 +131,45 @@ const plannerSummary = computed(() => {
   const stats = routeStats.value[activeMode.value]
 
   return {
-    score: activeProfile.value.score,
+    score: stats?.safetyScore ?? activeProfile.value.score,
     time: stats ? `${stats.durationMin} mins` : activeProfile.value.time,
     distance: stats ? `${stats.distanceKm} km` : '',
-    routeType: activeProfile.value.routeType,
-    subtitle: activeProfile.value.subtitle
+    routeType: stats?.routeTypeLabel || activeProfile.value.routeType,
+    subtitle: stats?.explanation || activeProfile.value.subtitle
+  }
+})
+
+const routeSafetyProfile = computed(() => {
+  const score = Number(plannerSummary.value.score || 0)
+  const normalizedScore = score > 10 ? score : score * 10
+  const riskLevel = normalizedScore >= 75
+    ? 'Low risk'
+    : normalizedScore >= 55
+      ? 'Moderate risk'
+      : 'Higher caution'
+  const modeDescriptions = {
+    safest: 'Prioritises lower predicted segment risk and stronger cycling infrastructure, even when the route is slightly longer.',
+    fastest: 'Prioritises travel time, so the route may use busier streets or mixed-traffic links where cycling exposure is higher.',
+    shortest: 'Prioritises directness, which can introduce tighter streets, intersections, and less consistent bike-lane coverage.'
+  }
+  const modeFeatures = {
+    safest: ['Protected-lane preference', 'Lower average risk', 'Comfort first'],
+    fastest: ['Time efficient', 'More direct links', 'Traffic-aware caution'],
+    shortest: ['Compact distance', 'Urban shortcuts', 'Intersection checks']
+  }
+
+  return {
+    riskLevel,
+    normalizedScore: Math.max(0, Math.min(100, Math.round(normalizedScore))),
+    description: modeDescriptions[activeMode.value] || modeDescriptions.safest,
+    features: modeFeatures[activeMode.value] || modeFeatures.safest,
+    modelNote: plannerSummary.value.subtitle || 'Safety is estimated from road-segment features, route geometry, and predicted risk.'
   }
 })
 
 const displayRoutePath = computed(() => [
   userCurrentCoords.value,
-  selectedDestination.value.coords
+  selectedDestination.value?.coords || MELBOURNE_CITY_CENTER
 ])
 
 const routePathToDraw = computed(() => {
@@ -142,6 +204,11 @@ function toggleLayer(toggleKey) {
       parkingLayer = null
     }
 
+    if (toggleKey === 'bikeLanes' && bikeLaneLayer) {
+      map.removeLayer(bikeLaneLayer)
+      bikeLaneLayer = null
+    }
+
     if (toggleKey === 'toilets' && toiletLayer) {
       map.removeLayer(toiletLayer)
       toiletLayer = null
@@ -161,6 +228,10 @@ function toggleLayer(toggleKey) {
     showNearestBikeParking(userCurrentCoords.value)
   }
 
+  if (toggleKey === 'bikeLanes') {
+    showDedicatedBikeLanes()
+  }
+
   if (toggleKey === 'toilets') {
     showNearbyFacilities('toilets', userCurrentCoords.value)
   }
@@ -174,6 +245,80 @@ function createFacilityMarker(type) {
   const markerClass = type === 'toilets' ? 'is-toilet' : 'is-water'
 
   return createHtmlMarker(markerLabel, markerClass)
+}
+
+function isWithinMelbourneCity(coords) {
+  const [lat, lng] = coords
+
+  return lat >= MELBOURNE_CITY_BOUNDS.south &&
+    lat <= MELBOURNE_CITY_BOUNDS.north &&
+    lng >= MELBOURNE_CITY_BOUNDS.west &&
+    lng <= MELBOURNE_CITY_BOUNDS.east
+}
+
+function showLocationWarning(message) {
+  locationWarning.value = message
+  alert(message)
+}
+
+function clearLocationWarning() {
+  locationWarning.value = ''
+}
+
+async function geocodeMelbournePlace(rawQuery) {
+  const searchText = `${rawQuery}, Melbourne, Australia`
+  const viewbox = [
+    MELBOURNE_CITY_BOUNDS.west,
+    MELBOURNE_CITY_BOUNDS.north,
+    MELBOURNE_CITY_BOUNDS.east,
+    MELBOURNE_CITY_BOUNDS.south
+  ].join(',')
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&viewbox=${viewbox}&q=${encodeURIComponent(searchText)}`
+  )
+  const results = await response.json()
+  const firstResult = results[0]
+
+  if (!firstResult) {
+    return null
+  }
+
+  return {
+    name: firstResult.display_name?.split(',')[0] || rawQuery,
+    coords: [Number(firstResult.lat), Number(firstResult.lon)]
+  }
+}
+
+async function resolveOriginInput() {
+  const rawQuery = originQuery.value.trim()
+
+  if (!rawQuery || rawQuery.toLowerCase() === 'current location') {
+    if (!isWithinMelbourneCity(userCurrentCoords.value)) {
+      throw new Error('Your current start point is outside the supported Melbourne city routing area.')
+    }
+
+    return
+  }
+
+  const matchedOrigin = plannerLocations.find((location) =>
+    location.name.toLowerCase() === rawQuery.toLowerCase()
+  ) || plannerLocations.find((location) =>
+    location.name.toLowerCase().includes(rawQuery.toLowerCase())
+  )
+
+  const resolvedOrigin = matchedOrigin || await geocodeMelbournePlace(rawQuery)
+
+  if (!resolvedOrigin) {
+    throw new Error('Cannot find this start point in Melbourne city.')
+  }
+
+  if (!isWithinMelbourneCity(resolvedOrigin.coords)) {
+    throw new Error('The start point is outside the supported Melbourne city routing area.')
+  }
+
+  originQuery.value = resolvedOrigin.name
+  userCurrentCoords.value = resolvedOrigin.coords
+  isUsingRealLocation.value = false
 }
 
 function showNearbyFacilities(type, userCoords) {
@@ -233,14 +378,24 @@ function showNearbyFacilities(type, userCoords) {
 }
 
 function chooseDestination(location) {
+  if (!isWithinMelbourneCity(location.coords)) {
+    showLocationWarning('This destination is outside the supported Melbourne city routing area.')
+    return
+  }
+
+  clearLocationWarning()
   customDestination.value = null
   destinationQuery.value = location.name
   selectedDestinationId.value = location.id
-  activeToggles.value = ['safeRoutes']
+  activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
   refreshRoadRoute()
 }
 
 async function searchDestination() {
+  await searchRoute()
+}
+
+async function searchRoute() {
   const rawQuery = destinationQuery.value.trim()
   const query = rawQuery.toLowerCase()
 
@@ -248,41 +403,38 @@ async function searchDestination() {
     return
   }
 
-  const matchedDestination = destinationOptions.value.find((location) =>
-    location.name.toLowerCase() === query
-  ) || destinationOptions.value.find((location) =>
-    location.name.toLowerCase().includes(query)
-  )
-
-  if (matchedDestination) {
-    chooseDestination(matchedDestination)
-    return
-  }
-
   try {
-    const searchText = `${rawQuery}, Melbourne, Australia`
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(searchText)}`
-    )
-    const results = await response.json()
-    const firstResult = results[0]
+    await resolveOriginInput()
 
-    if (!firstResult) {
+    const matchedDestination = destinationOptions.value.find((location) =>
+      location.name.toLowerCase() === query
+    ) || destinationOptions.value.find((location) =>
+      location.name.toLowerCase().includes(query)
+    )
+    const resolvedDestination = matchedDestination || await geocodeMelbournePlace(rawQuery)
+
+    if (!resolvedDestination) {
       alert('Cannot find this destination on the map')
       return
     }
 
+    if (!isWithinMelbourneCity(resolvedDestination.coords)) {
+      showLocationWarning('The destination is outside the supported Melbourne city routing area.')
+      return
+    }
+
+    clearLocationWarning()
     customDestination.value = {
       id: 'custom-destination',
-      name: firstResult.display_name?.split(',')[0] || rawQuery,
-      coords: [Number(firstResult.lat), Number(firstResult.lon)]
+      name: resolvedDestination.name,
+      coords: resolvedDestination.coords
     }
-    selectedDestinationId.value = 'custom-destination'
+    selectedDestinationId.value = matchedDestination?.id || 'custom-destination'
     destinationQuery.value = rawQuery
-    activeToggles.value = ['safeRoutes']
+    activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
     await refreshRoadRoute()
   } catch (error) {
-    alert('Unable to search this destination right now')
+    showLocationWarning(error.message || 'Unable to search this route right now')
   }
 }
 
@@ -305,26 +457,158 @@ function applyDestinationFromQuery() {
     customDestination.value = null
     destinationQuery.value = matchedDestination.name
     selectedDestinationId.value = matchedDestination.id
-    activeToggles.value = ['safeRoutes']
+    activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
     return
   }
 
   destinationQuery.value = queryDestination
-  activeToggles.value = ['safeRoutes']
+  activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
+}
+
+function resetRouteResults() {
+  roadRouteOptions.value = {
+    safest: [],
+    fastest: [],
+    shortest: []
+  }
+  routeStats.value = {
+    safest: null,
+    fastest: null,
+    shortest: null
+  }
+  routeWarnings.value = []
+}
+
+function normalizeSafetyScore(score) {
+  const numericScore = Number(score)
+
+  if (!Number.isFinite(numericScore)) {
+    return null
+  }
+
+  return numericScore > 10
+    ? Number((numericScore / 10).toFixed(1))
+    : Number(numericScore.toFixed(1))
+}
+
+function routeTypeLabel(routeType) {
+  if (routeType === 'safest') return 'Safest Route'
+  if (routeType === 'fastest') return 'Fastest Route'
+  if (routeType === 'shortest') return 'Shortest Route'
+  return routeType || 'Route'
+}
+
+function getRouteColor(routeType) {
+  return routeVisuals[routeType]?.color || '#007aff'
+}
+
+function toLeafletPath(pathCoordinates = []) {
+  return pathCoordinates
+    .filter((point) => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)))
+    .map((point) => [Number(point.lat), Number(point.lng)])
+}
+
+function applyBackendRoutes(data) {
+  const nextRouteOptions = {
+    safest: [],
+    fastest: [],
+    shortest: []
+  }
+  const nextRouteStats = {
+    safest: null,
+    fastest: null,
+    shortest: null
+  }
+
+  ;(data.routes || []).forEach((routeItem) => {
+    const rawRouteType = String(routeItem.route_type || '').toLowerCase()
+    const routeType = rawRouteType === 'balanced' ? 'shortest' : rawRouteType
+
+    if (!nextRouteOptions[routeType]) {
+      return
+    }
+
+    const path = toLeafletPath(routeItem.path_coordinates)
+    nextRouteOptions[routeType] = path
+    nextRouteStats[routeType] = {
+      distanceKm: Number((Number(routeItem.total_distance_m || 0) / 1000).toFixed(1)),
+      durationMin: Math.max(1, Math.round(Number(routeItem.estimated_duration_min || 0))),
+      safetyScore: normalizeSafetyScore(routeItem.safety_score),
+      routeTypeLabel: routeTypeLabel(routeType),
+      explanation: routeItem.explanation,
+      partialSegmentGeometry: Boolean(routeItem.partial_segment_geometry)
+    }
+  })
+
+  if (!Object.values(nextRouteOptions).some((path) => path.length)) {
+    throw new Error('Backend route response did not include drawable geometry.')
+  }
+
+  roadRouteOptions.value = nextRouteOptions
+  routeStats.value = nextRouteStats
+  routeWarnings.value = data.warnings || []
+
+  if (!nextRouteOptions[activeMode.value]?.length) {
+    activeMode.value = nextRouteOptions.safest.length
+      ? 'safest'
+      : Object.keys(nextRouteOptions).find((key) => nextRouteOptions[key].length) || 'safest'
+  }
+}
+
+async function loadModelRoadRoute() {
+  const [startLat, startLng] = userCurrentCoords.value
+  const [endLat, endLng] = selectedDestination.value.coords
+
+  const response = await fetch(`${API_BASE_URL}/api/routes/compare`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      origin: {
+        text: isUsingRealLocation.value ? 'Current location' : currentLocation.name,
+        lat: startLat,
+        lng: startLng
+      },
+      destination: {
+        text: selectedDestination.value.name,
+        lat: endLat,
+        lng: endLng
+      },
+      mode: 'cycling'
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Backend route API failed: ${response.status}`)
+  }
+
+  applyBackendRoutes(await response.json())
 }
 
 async function loadRoadRoute() {
   if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
-    roadRouteOptions.value = {
-      safest: [],
-      fastest: [],
-      shortest: []
+    resetRouteResults()
+    return
+  }
+
+  if (USE_MODEL_ROUTES) {
+    try {
+      await loadModelRoadRoute()
+      return
+    } catch (error) {
+      await loadOsrmRoadRoute()
+      routeWarnings.value = ['Backend route API unavailable; using existing route fallback.']
+      return
     }
-    routeStats.value = {
-      safest: null,
-      fastest: null,
-      shortest: null
-    }
+  }
+
+  await loadOsrmRoadRoute()
+}
+
+async function loadOsrmRoadRoute() {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
+    resetRouteResults()
     return
   }
 
@@ -339,16 +623,7 @@ async function loadRoadRoute() {
     const routeResults = data.routes || []
 
     if (!routeResults.length) {
-      roadRouteOptions.value = {
-        safest: [],
-        fastest: [],
-        shortest: []
-      }
-      routeStats.value = {
-        safest: null,
-        fastest: null,
-        shortest: null
-      }
+      resetRouteResults()
       return
     }
 
@@ -412,21 +687,13 @@ async function loadRoadRoute() {
 
     roadRouteOptions.value = nextRouteOptions
     routeStats.value = nextRouteStats
+    routeWarnings.value = []
 
     if (!nextRouteOptions[activeMode.value]?.length) {
       activeMode.value = 'safest'
     }
   } catch (error) {
-    roadRouteOptions.value = {
-      safest: [],
-      fastest: [],
-      shortest: []
-    }
-    routeStats.value = {
-      safest: null,
-      fastest: null,
-      shortest: null
-    }
+    resetRouteResults()
   }
 }
 
@@ -475,6 +742,53 @@ function findNearestBikeParking(userCoords, geojson, limit = 5) {
     .slice(0, limit)
 }
 
+function isDedicatedBikeLane(feature) {
+  const properties = feature.properties || {}
+  const geometryType = feature.geometry?.type
+
+  if (!['LineString', 'MultiLineString', 'Polygon'].includes(geometryType)) {
+    return false
+  }
+
+  return properties.highway === 'cycleway' ||
+    properties.cycleway === 'track' ||
+    properties.cycleway === 'lane' ||
+    properties['cycleway:left'] === 'track' ||
+    properties['cycleway:right'] === 'track' ||
+    properties.bicycle === 'designated' ||
+    properties.bicycle === 'yes'
+}
+
+function showDedicatedBikeLanes() {
+  fetch('/bike_line.geojson')
+    .then((res) => res.json())
+    .then((data) => {
+      const dedicatedBikeLanes = (data.features || []).filter(isDedicatedBikeLane)
+
+      if (bikeLaneLayer) {
+        map.removeLayer(bikeLaneLayer)
+      }
+
+      bikeLaneLayer = L.geoJSON(dedicatedBikeLanes, {
+        style: {
+          color: '#00c7be',
+          weight: 4,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round'
+        },
+        onEachFeature: (feature, layer) => {
+          const name = feature.properties?.name || 'Dedicated bike lane'
+          const laneType = feature.properties?.cycleway || feature.properties?.highway || 'cycle route'
+          layer.bindTooltip(`${name} · ${laneType}`)
+        }
+      }).addTo(map)
+    })
+    .catch(() => {
+      alert('Unable to load dedicated bike lane data')
+    })
+}
+
 function showNearestBikeParking(userCoords) {
   fetch('/bike_parking.geojson')
     .then((res) => res.json())
@@ -512,6 +826,16 @@ function focusCurrentLocation() {
 
   map.once('locationfound', (event) => {
     const userCoords = [event.latlng.lat, event.latlng.lng]
+
+    if (!isWithinMelbourneCity(userCoords)) {
+      isUsingRealLocation.value = false
+      showLocationWarning('Your current location is outside the supported Melbourne city routing area.')
+      updateMapScene()
+      return
+    }
+
+    clearLocationWarning()
+    originQuery.value = 'Current Location'
     userCurrentCoords.value = userCoords
     isUsingRealLocation.value = true
 
@@ -570,9 +894,31 @@ function createHtmlMarker(label, modifier = '') {
 }
 
 function resetLeafletLayers() {
-  ;[routeLayer, safeZonesLayer, riskLayer, popularLayer, parkingLayer, toiletLayer, waterLayer, startMarker, destinationMarker]
+  ;[routeLayer, safeZonesLayer, riskLayer, popularLayer, parkingLayer, bikeLaneLayer, toiletLayer, waterLayer, startMarker, destinationMarker]
     .filter(Boolean)
     .forEach((layer) => map.removeLayer(layer))
+}
+
+function getMelbourneCityBounds() {
+  return L.latLngBounds(
+    [MELBOURNE_CITY_BOUNDS.south, MELBOURNE_CITY_BOUNDS.west],
+    [MELBOURNE_CITY_BOUNDS.north, MELBOURNE_CITY_BOUNDS.east]
+  )
+}
+
+function buildCityBoundaryLayer() {
+  if (cityBoundaryLayer) {
+    map.removeLayer(cityBoundaryLayer)
+  }
+
+  cityBoundaryLayer = L.rectangle(getMelbourneCityBounds(), {
+    color: '#007aff',
+    weight: 2,
+    opacity: 0.7,
+    fillColor: '#007aff',
+    fillOpacity: 0.04,
+    dashArray: '8 8'
+  }).addTo(map)
 }
 
 function buildRouteLayer() {
@@ -584,21 +930,40 @@ function buildRouteLayer() {
   const alternativeLayers = releaseRouteModes
     .filter((mode) => mode.id !== activeMode.value && roadRouteOptions.value[mode.id]?.length)
     .map((mode) =>
-      L.polyline(roadRouteOptions.value[mode.id], {
-        color: '#8aa4bd',
-        weight: 4,
-        opacity: 0.35,
-        lineCap: 'round'
-      })
+      L.layerGroup([
+        L.polyline(roadRouteOptions.value[mode.id], {
+          color: routeVisuals[mode.id]?.halo || '#ffffff',
+          weight: 8,
+          opacity: 0.72,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }),
+        L.polyline(roadRouteOptions.value[mode.id], {
+          color: getRouteColor(mode.id),
+          weight: 5,
+          opacity: 0.58,
+          dashArray: '8 10',
+          lineCap: 'round',
+          lineJoin: 'round'
+        })
+      ])
     )
 
   routeLayer = L.layerGroup([
     ...alternativeLayers,
     L.polyline(routePathToDraw.value, {
-      color: '#00bcd4',
-      weight: 8,
+      color: activeRouteVisual.value.halo,
+      weight: 12,
+      opacity: 0.88,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }),
+    L.polyline(routePathToDraw.value, {
+      color: activeRouteVisual.value.color,
+      weight: 7,
       opacity: 0.95,
-      lineCap: 'round'
+      lineCap: 'round',
+      lineJoin: 'round'
     })
   ])
 
@@ -662,7 +1027,7 @@ function buildPopularLayer() {
 }
 
 function buildEndpoints() {
-  if (!destinationQuery.value.trim()) {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
     startMarker = L.marker(userCurrentCoords.value, {
       icon: createHtmlMarker(isUsingRealLocation.value ? 'You' : 'Start', 'is-start')
     }).addTo(map)
@@ -694,6 +1059,10 @@ function updateMapScene() {
     showNearestBikeParking(userCurrentCoords.value)
   }
 
+  if (hasToggle('bikeLanes')) {
+    showDedicatedBikeLanes()
+  }
+
   if (hasToggle('toilets')) {
     showNearbyFacilities('toilets', userCurrentCoords.value)
   }
@@ -702,7 +1071,7 @@ function updateMapScene() {
     showNearbyFacilities('water', userCurrentCoords.value)
   }
 
-  if (!destinationQuery.value.trim()) {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
     map.setView(userCurrentCoords.value, 14)
     return
   }
@@ -717,15 +1086,28 @@ function updateMapScene() {
 }
 
 function initializeMap() {
+  const maxBounds = getMelbourneCityBounds()
+
   map = L.map(mapContainer.value, {
-    zoomControl: false
-  }).setView(userCurrentCoords.value, 13)
+    zoomControl: false,
+    maxBounds,
+    maxBoundsViscosity: 1,
+    minZoom: 14,
+    maxZoom: 18
+  }).fitBounds(maxBounds, {
+    padding: [18, 18],
+    maxZoom: 14
+  })
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
+    attribution: '&copy; OpenStreetMap contributors',
+    bounds: maxBounds,
+    noWrap: true
   }).addTo(map)
 
   L.control.zoom({ position: 'bottomright' }).addTo(map)
+  map.setMaxBounds(maxBounds)
+  buildCityBoundaryLayer()
   updateMapScene()
 }
 
@@ -769,18 +1151,32 @@ watch(selectedDestinationId, refreshRoadRoute)
         </button>
 
         <label class="search-field">
+          <span>A</span>
+          <input
+            v-model="originQuery"
+            type="text"
+            placeholder="Start point"
+            @keydown.enter.prevent="searchRoute"
+          />
+        </label>
+
+        <label class="search-field">
           <span>🔍</span>
           <input
             v-model="destinationQuery"
             type="text"
-            placeholder="Search location..."
-            @keydown.enter.prevent="searchDestination"
+            placeholder="Destination"
+            @keydown.enter.prevent="searchRoute"
           />
         </label>
 
-        <button type="button" class="search-button" @click="searchDestination">
+        <button type="button" class="search-button" @click="searchRoute">
           Search Route
         </button>
+
+        <p v-if="locationWarning" class="location-warning">
+          {{ locationWarning }}
+        </p>
 
         <div v-if="destinationQuery.trim() && filteredDestinations.length" class="destination-list">
           <button
@@ -816,10 +1212,10 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 
 
-      <section v-if="destinationQuery.trim()" class="bottom-route-card">
+      <section v-if="destinationQuery.trim() && selectedDestination" class="bottom-route-card">
         <div class="navigation-summary">
           <div>
-            <p class="navigation-mode">🚲 {{ releaseRouteModes.find((mode) => mode.id === activeMode)?.label || 'Selected' }} Route</p>
+            <p class="navigation-mode" :style="{ color: activeRouteVisual.color }">🚲 {{ releaseRouteModes.find((mode) => mode.id === activeMode)?.label || 'Selected' }} Route</p>
             <h2>{{ plannerSummary.time }}<template v-if="plannerSummary.distance"> · {{ plannerSummary.distance }}</template></h2>
             <span>Safety score {{ plannerSummary.score }}/10 · {{ selectedDestination?.name }}</span>
           </div>
@@ -840,15 +1236,27 @@ watch(selectedDestinationId, refreshRoadRoute)
               :key="mode.id"
               type="button"
               :class="{ active: activeMode === mode.id }"
+              :style="{ '--route-color': getRouteColor(mode.id) }"
               @click="activeMode = mode.id"
             >
+              <span class="route-tab-dot" :style="{ background: getRouteColor(mode.id) }"></span>
               {{ mode.label }}
             </button>
+          </div>
+
+          <div class="route-legend" aria-label="Route colour legend">
+            <span v-for="mode in availableRouteModes" :key="`legend-${mode.id}`">
+              <i :style="{ background: getRouteColor(mode.id) }"></i>
+              {{ mode.label }}
+            </span>
           </div>
 
           <p class="route-count-note">
             {{ availableRouteCount }} available route option{{ availableRouteCount === 1 ? '' : 's' }}
             <span v-if="availableRouteCount === 1"> · only one route returned by map service</span>
+          </p>
+          <p v-if="routeWarnings.length" class="route-warning-note">
+            {{ routeWarnings[0] }}
           </p>
 
           <div class="bottom-detail-grid">
@@ -864,6 +1272,37 @@ watch(selectedDestinationId, refreshRoadRoute)
               <p class="summary-text">{{ plannerSummary.subtitle }}</p>
             </div>
           </div>
+
+          <div class="safety-visual-card">
+            <div class="safety-meter-header">
+              <span>{{ routeSafetyProfile.riskLevel }}</span>
+              <strong>{{ routeSafetyProfile.normalizedScore }}%</strong>
+            </div>
+            <div class="safety-meter">
+              <span
+                :style="{
+                  width: `${routeSafetyProfile.normalizedScore}%`,
+                  background: activeRouteVisual.color
+                }"
+              ></span>
+            </div>
+            <p>{{ routeSafetyProfile.description }}</p>
+          </div>
+
+          <div class="route-feature-chips">
+            <span
+              v-for="feature in routeSafetyProfile.features"
+              :key="feature"
+              :style="{ borderColor: activeRouteVisual.color }"
+            >
+              {{ feature }}
+            </span>
+          </div>
+
+          <div class="analysis-note">
+            <strong>Safety analysis</strong>
+            <p>{{ routeSafetyProfile.modelNote }}</p>
+          </div>
         </div>
       </section>
     </section>
@@ -873,22 +1312,25 @@ watch(selectedDestinationId, refreshRoadRoute)
 <style scoped>
 .release-map {
   min-height: calc(100vh - 79px);
-  padding: 16px;
-  background: #78a9f4;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(232, 238, 247, 0.98)),
+    #f5f5f7;
 }
 
 
 .map-stage {
   position: relative;
-  min-height: 760px;
+  min-height: calc(100vh - 116px);
   max-width: 1180px;
   margin: 0 auto;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 30px;
   background:
-    linear-gradient(rgba(229, 244, 255, 0.16), rgba(229, 244, 255, 0.22)),
-    #dbeafe;
-  box-shadow: 0 22px 58px rgba(31, 68, 128, 0.24);
+    linear-gradient(rgba(245, 247, 250, 0.18), rgba(245, 247, 250, 0.2)),
+    #eef2f7;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
 }
 
 :deep(.leaflet-container) {
@@ -903,9 +1345,9 @@ watch(selectedDestinationId, refreshRoadRoute)
 :deep(.release-map-marker) {
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 18px rgba(31, 68, 128, 0.16);
-  color: #476079;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.13);
+  color: #1d1d1f;
   font-size: 0.85rem;
   font-weight: 800;
   text-align: center;
@@ -917,7 +1359,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   padding: 0;
   border: 3px solid #ffffff;
   border-radius: 50%;
-  background: #5b94ef;
+  background: #0071e3;
   color: transparent;
   font-size: 0;
   box-shadow: 0 0 0 4px rgba(91, 148, 239, 0.24);
@@ -979,24 +1421,26 @@ watch(selectedDestinationId, refreshRoadRoute)
 .bottom-route-card {
   position: absolute;
   z-index: 400;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 12px 30px rgba(31, 68, 128, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.13);
+  backdrop-filter: blur(22px);
 }
 
 .search-panel {
   top: 24px;
   left: 24px;
-  width: 290px;
-  padding: 12px;
+  width: 320px;
+  padding: 10px;
 }
 
 .location-button {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   border: 0;
-  border-radius: 6px;
-  background: #5b94ef;
+  border-radius: 17px;
+  background: #0071e3;
   color: #ffffff;
   text-align: center;
   cursor: pointer;
@@ -1004,19 +1448,31 @@ watch(selectedDestinationId, refreshRoadRoute)
 }
 
 .location-button:hover {
-  background: #457fd8;
+  background: #0066cc;
 }
 
 .search-field {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 38px;
+  min-height: 44px;
   margin-top: 8px;
-  padding: 0 10px;
-  border-radius: 5px;
-  background: #f7faff;
-  color: #66809e;
+  padding: 0 12px;
+  border-radius: 17px;
+  background: rgba(245, 245, 247, 0.9);
+  color: #6e6e73;
+}
+
+.search-field span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1d1d1f;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 900;
 }
 
 .search-field input {
@@ -1024,6 +1480,8 @@ watch(selectedDestinationId, refreshRoadRoute)
   min-width: 0;
   border: 0;
   background: transparent;
+  color: #1d1d1f;
+  font-size: 1rem;
 }
 
 .search-field input:focus {
@@ -1032,29 +1490,40 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 .search-button {
   width: 100%;
-  min-height: 34px;
+  min-height: 42px;
   margin-top: 8px;
   border: 0;
-  border-radius: 5px;
-  background: #3d9b72;
+  border-radius: 17px;
+  background: #34c759;
   color: #ffffff;
   cursor: pointer;
   font-weight: 800;
 }
 
 .search-button:hover {
-  background: #2f855f;
+  background: #2fb350;
+}
+
+.location-warning {
+  margin: 8px 4px 0;
+  padding: 9px 10px;
+  border-radius: 15px;
+  background: rgba(255, 159, 10, 0.13);
+  color: #9a5b00;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .layer-toggle-button {
   display: block;
   width: 100%;
-  min-height: 34px;
+  min-height: 40px;
   margin-top: 8px;
   border: 0;
-  border-radius: 5px;
-  background: #edf4ff;
-  color: #476079;
+  border-radius: 17px;
+  background: rgba(0, 113, 227, 0.1);
+  color: #0066cc;
   cursor: pointer;
   font-weight: 800;
 }
@@ -1062,21 +1531,21 @@ watch(selectedDestinationId, refreshRoadRoute)
 .destination-list {
   display: grid;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .destination-option {
-  min-height: 34px;
+  min-height: 38px;
   border: 0;
-  border-radius: 5px;
-  background: #eef4ff;
-  color: #476079;
+  border-radius: 15px;
+  background: rgba(245, 245, 247, 0.9);
+  color: #424245;
   text-align: left;
   cursor: pointer;
 }
 
 .destination-option.active {
-  background: #5b94ef;
+  background: #0071e3;
   color: #ffffff;
   font-weight: 800;
 }
@@ -1092,7 +1561,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #476079;
+  color: #424245;
 }
 
 .toggle-list input {
@@ -1102,35 +1571,78 @@ watch(selectedDestinationId, refreshRoadRoute)
 .toggle-list span {
   width: 14px;
   height: 14px;
-  border-radius: 4px;
+  border-radius: 50%;
 }
 
 
 .mode-tabs {
   display: flex;
   overflow: hidden;
-  border-radius: 6px;
-  background: #edf3fb;
+  border-radius: 16px;
+  background: rgba(245, 245, 247, 0.95);
 }
 
 .mode-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex: 1;
   min-height: 34px;
   border: 0;
   background: transparent;
-  color: #506985;
+  color: #6e6e73;
   cursor: pointer;
 }
 
 .mode-tabs button.active {
-  background: #5b94ef;
+  background: var(--route-color, #1d1d1f);
   color: #ffffff;
   font-weight: 800;
 }
 
+.route-tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.72);
+}
+
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.route-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(245, 245, 247, 0.9);
+  color: #424245;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.route-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
 .route-count-note {
   margin: 10px 0 0;
-  color: #60738a;
+  color: #6e6e73;
+  font-size: 0.85rem;
+}
+
+.route-warning-note {
+  margin: 8px 0 0;
+  color: #a15c13;
   font-size: 0.85rem;
 }
 
@@ -1146,8 +1658,8 @@ watch(selectedDestinationId, refreshRoadRoute)
   place-items: center;
   width: 52px;
   height: 52px;
-  border-radius: 8px;
-  background: #3d9b72;
+  border-radius: 15px;
+  background: #34c759;
   color: #ffffff;
   font-size: 1.6rem;
   font-weight: 900;
@@ -1173,7 +1685,7 @@ watch(selectedDestinationId, refreshRoadRoute)
 }
 
 .summary-text {
-  color: #60738a;
+  color: #6e6e73;
 }
 
 
@@ -1218,8 +1730,8 @@ watch(selectedDestinationId, refreshRoadRoute)
 .bottom-route-card {
   right: 24px;
   bottom: 24px;
-  width: 430px;
-  padding: 14px;
+  width: 450px;
+  padding: 16px;
 }
 
 .navigation-summary {
@@ -1227,13 +1739,13 @@ watch(selectedDestinationId, refreshRoadRoute)
   grid-template-columns: 1fr auto;
   gap: 14px;
   align-items: center;
-  color: #526780;
+  color: #6e6e73;
 }
 
 .navigation-summary h2 {
   margin: 4px 0;
-  color: #304765;
-  font-size: 1.4rem;
+  color: #1d1d1f;
+  font-size: 1.5rem;
 }
 
 .navigation-summary span {
@@ -1242,7 +1754,7 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 .navigation-mode {
   margin: 0;
-  color: #2f855f;
+  color: #34c759;
   font-weight: 800;
 }
 
@@ -1262,20 +1774,20 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 .detail-toggle {
   padding: 0 16px;
-  background: #edf4ff;
-  color: #476079;
+  background: rgba(0, 113, 227, 0.1);
+  color: #0066cc;
 }
 
 .start-button {
   padding: 0 22px;
-  background: #00bcd4;
+  background: #0071e3;
   color: #ffffff;
 }
 
 .bottom-detail-panel {
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(82, 103, 128, 0.16);
+  border-top: 1px solid rgba(60, 60, 67, 0.14);
 }
 
 .compact-tabs {
@@ -1287,7 +1799,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   grid-template-columns: 180px 1fr;
   gap: 14px;
   margin-top: 12px;
-  color: #445a75;
+  color: #424245;
 }
 
 .mini-score {
@@ -1297,13 +1809,82 @@ watch(selectedDestinationId, refreshRoadRoute)
 }
 
 .mini-score strong {
-  color: #2f855f;
+  color: #34c759;
   font-size: 1.35rem;
 }
 
 .mini-score p {
   margin: 2px 0 0;
-  color: #60738a;
+  color: #6e6e73;
+}
+
+.safety-visual-card {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(245, 245, 247, 0.86);
+}
+
+.safety-meter-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #1d1d1f;
+  font-weight: 900;
+}
+
+.safety-meter {
+  height: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.12);
+}
+
+.safety-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.safety-visual-card p {
+  margin: 12px 0 0;
+  color: #424245;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.route-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.route-feature-chips span {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #1d1d1f;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.analysis-note {
+  margin-top: 12px;
+  padding: 13px 14px;
+  border-radius: 18px;
+  background: rgba(0, 113, 227, 0.1);
+  color: #1d1d1f;
+}
+
+.analysis-note p {
+  margin: 6px 0 0;
+  color: #424245;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 @media (max-width: 980px) {
@@ -1312,7 +1893,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   }
 
   .map-stage {
-    min-height: 1180px;
+    min-height: calc(100vh - 104px);
   }
 
   .search-panel,
@@ -1330,21 +1911,22 @@ watch(selectedDestinationId, refreshRoadRoute)
 @media (max-width: 640px) {
   .release-map {
     min-height: calc(100vh - 150px);
-    padding: 10px;
+    padding: 0;
   }
 
   .map-stage {
-    min-height: calc(100vh - 180px);
-    height: calc(100vh - 180px);
-    border-radius: 10px;
+    min-height: calc(100vh - 96px);
+    height: calc(100vh - 96px);
+    border-radius: 0;
   }
 
   .search-panel {
-    top: 14px;
-    left: 14px;
-    right: 14px;
+    top: 12px;
+    left: 12px;
+    right: 12px;
     width: auto;
-    padding: 10px;
+    padding: 8px;
+    border-radius: 22px;
   }
 
   .location-button {
@@ -1360,12 +1942,12 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 
   .bottom-route-card {
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
     width: auto;
-    padding: 12px;
-    border-radius: 16px;
+    padding: 14px;
+    border-radius: 24px;
   }
 
   .navigation-summary {
