@@ -28,7 +28,7 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
 </script>
 
 <template>
-  <main class="release-insights">
+  <main class="release-insights" data-test="release-insights-panel">
     <section class="insights-shell">
       <p class="eyebrow">Safety Insights</p>
       <h1>Daily Cycling Conditions</h1>

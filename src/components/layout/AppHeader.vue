@@ -2,7 +2,7 @@
   <header class="app-header">
     <div class="brand">
       <img :src="logoSrc" alt="logo" class="logo" />
-      <span class="brand-text">SmartCycle Navigator</span>
+      <span class="brand-text">SafeSpin Melbourne</span>
     </div>
 
     <nav class="nav-links" aria-label="Primary">

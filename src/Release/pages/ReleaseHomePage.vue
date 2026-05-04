@@ -14,28 +14,35 @@ const routeOptions = [
 const safestRoute = computed(() => routeOptions[0])
 
 function openMap() {
-  router.push('/map')
+  const targetDestination = destination.value.trim() || 'New Park'
+
+  router.push({
+    path: '/map',
+    query: {
+      from: 'current-location',
+      destination: targetDestination,
+      showRoute: 'true'
+    }
+  })
 }
 </script>
 
 <template>
-  <main class="release-home">
+  <main class="release-home" data-test="release-home-panel">
     <section class="hero-panel">
       <div class="hero-copy">
-        <h1>SmartCycle Navigator</h1>
-        <p>A Smart Cycling Safety and Decision Support System</p>
+        <h1>SafeSpin Melbourne</h1>
+        <p>Safer cycling routes with local mobility data</p>
         <p>Using Open Mobility Data</p>
       </div>
 
       <form class="route-search" @submit.prevent="openMap">
-        <label class="field current-location">
-          <span class="pin-icon">O</span>
-          <input value="Current Location" readonly />
-        </label>
         <label class="field">
-          <span class="pin-icon hollow">O</span>
-          <input v-model="destination" placeholder="Enter Destination" />
-          <button type="button" class="field-menu" aria-label="Choose destination">v</button>
+          <span class="pin-icon hollow">🔍</span>
+          <input
+            v-model="destination"
+            placeholder="Enter Destination"
+          />
         </label>
         <button class="find-button" type="submit">Find Safest Route</button>
       </form>
@@ -158,16 +165,13 @@ function openMap() {
 
 .field {
   display: grid;
-  grid-template-columns: 24px 1fr 32px;
+  grid-template-columns: 24px 1fr;
   align-items: center;
   min-height: 46px;
   padding: 0 8px;
   border-bottom: 1px solid #e3ebf5;
 }
 
-.field.current-location {
-  grid-template-columns: 24px 1fr;
-}
 
 .pin-icon {
   color: #5b94ef;
@@ -190,12 +194,6 @@ function openMap() {
   outline: none;
 }
 
-.field-menu {
-  border: 0;
-  background: transparent;
-  color: #6b7a8c;
-  cursor: pointer;
-}
 
 .find-button,
 .compare-button,

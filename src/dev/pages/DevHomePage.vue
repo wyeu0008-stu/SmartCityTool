@@ -32,7 +32,7 @@ function openMap() {
   <main class="release-home" data-test="dev-home-panel">
     <section class="hero-panel">
       <div class="hero-copy">
-        <h1>SmartCycle Navigator</h1>
+        <h1>SafeSpin Melbourne</h1>
         <p>A Smart Cycling Safety and Decision Support System</p>
         <p>Using Open Mobility Data</p>
       </div>
