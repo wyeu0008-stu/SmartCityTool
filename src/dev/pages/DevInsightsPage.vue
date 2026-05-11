@@ -1,6 +1,6 @@
 <script setup>
 /* c8 ignore file */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const insightCards = [
   {
@@ -20,12 +20,77 @@ const insightCards = [
   }
 ]
 
+const cyclingTips = [
+  {
+    title: 'Start Small',
+    text: 'Even a short ride through Melbourne CBD can help build confidence and improve daily fitness.'
+  },
+  {
+    title: 'Choose Bike Lanes',
+    text: 'Use marked bike lanes where possible to make your journey safer and more comfortable.'
+  },
+  {
+    title: 'Avoid Peak Stress',
+    text: 'Try riding during quieter hours to enjoy a smoother and less stressful trip.'
+  },
+  {
+    title: 'Plan Before You Ride',
+    text: 'Check your route before leaving, especially around busy intersections and tram corridors.'
+  },
+  {
+    title: 'Every Ride Counts',
+    text: 'Each cycling trip helps reduce congestion and supports a cleaner Melbourne CBD.'
+  },
+  {
+    title: 'Ride with Confidence',
+    text: 'Safe cycling is not about speed. It is about awareness, control, and good route choices.'
+  },
+  {
+    title: 'Use Visibility',
+    text: 'Wear visible clothing and use lights when riding in low-light conditions.'
+  },
+  {
+    title: 'Take Breaks',
+    text: 'If the weather feels uncomfortable, pause your trip and continue when conditions improve.'
+  },
+  {
+    title: 'Enjoy the City',
+    text: 'Cycling can turn a normal commute into a more active and enjoyable city experience.'
+  },
+  {
+    title: 'Be Predictable',
+    text: 'Signal early, keep a steady line, and make your movements clear to other road users.'
+  },
+  {
+    title: 'Stay Hydrated',
+    text: 'Bring water for longer city rides, especially during warm afternoons.'
+  },
+  {
+    title: 'Check Your Bike',
+    text: 'A quick tyre and brake check before leaving can make your ride safer.'
+  }
+]
+
+const tipSeed = ref(0)
+
 const today = computed(() => new Date().toLocaleDateString('en-AU', {
   weekday: 'long',
   year: 'numeric',
   month: 'long',
   day: 'numeric'
 }))
+
+const randomTips = computed(() => {
+  tipSeed.value
+
+  return [...cyclingTips]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+})
+
+function refreshTips() {
+  tipSeed.value += 1
+}
 </script>
 
 <template>
@@ -36,12 +101,37 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
       <p class="date-text">{{ today }}</p>
 
       <div class="insight-grid">
-        <article v-for="card in insightCards" :key="card.title">
+        <article v-for="card in insightCards" :key="card.title" class="condition-card">
           <span>{{ card.title }}</span>
           <strong>{{ card.value }}</strong>
           <p>{{ card.detail }}</p>
         </article>
       </div>
+
+      <section class="tips-section">
+        <div class="tips-heading">
+          <div>
+            <p class="eyebrow">Positive Cycling Tips</p>
+            <h2>Small choices can make every ride safer</h2>
+          </div>
+
+          <button class="refresh-button" type="button" @click="refreshTips">
+            Refresh Tips
+          </button>
+        </div>
+
+        <div class="tips-grid">
+          <article
+            v-for="tip in randomTips"
+            :key="tip.title"
+            class="tip-card"
+          >
+            <div class="tip-icon">🚴</div>
+            <h3>{{ tip.title }}</h3>
+            <p>{{ tip.text }}</p>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
 </template>
@@ -97,7 +187,7 @@ h1 {
   margin-top: 34px;
 }
 
-article {
+.condition-card {
   min-height: 190px;
   padding: 24px;
   border: 1px solid rgba(255, 255, 255, 0.72);
@@ -107,19 +197,97 @@ article {
   backdrop-filter: blur(22px);
 }
 
-article span {
+.condition-card span {
   color: #6e6e73;
   font-weight: 800;
 }
 
-article strong {
+.condition-card strong {
   display: block;
   margin-top: 16px;
   color: #1d1d1f;
   font-size: 2.25rem;
 }
 
-article p {
+.condition-card p {
+  color: #6e6e73;
+  line-height: 1.6;
+}
+
+.tips-section {
+  margin-top: 34px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(22px);
+}
+
+.tips-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.tips-heading h2 {
+  margin: 0;
+  max-width: 680px;
+  color: #1d1d1f;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 1.1;
+}
+
+.refresh-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  color: #ffffff;
+  background: #0071e3;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 113, 227, 0.24);
+}
+
+.refresh-button:hover {
+  background: #005bbd;
+}
+
+.tips-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.tip-card {
+  min-height: 190px;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(235, 247, 255, 0.9));
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
+}
+
+.tip-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: #e8f5ee;
+  font-size: 1.35rem;
+}
+
+.tip-card h3 {
+  margin: 0 0 10px;
+  color: #1d1d1f;
+  font-size: 1.25rem;
+}
+
+.tip-card p {
+  margin: 0;
   color: #6e6e73;
   line-height: 1.6;
 }
@@ -135,12 +303,19 @@ article p {
     border-radius: 0 0 28px 28px;
   }
 
-  .insight-grid {
+  .insight-grid,
+  .tips-grid {
     grid-template-columns: 1fr;
   }
 
-  article {
+  .condition-card,
+  .tip-card {
     min-height: 0;
+  }
+
+  .tips-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

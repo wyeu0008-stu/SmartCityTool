@@ -8,6 +8,55 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
   month: 'long',
   day: 'numeric'
 }))
+
+const cyclingTips = [
+  {
+    title: 'Start Small',
+    text: 'Even a short ride through Melbourne CBD can help build confidence and improve daily fitness.'
+  },
+  {
+    title: 'Choose Bike Lanes',
+    text: 'Use marked bike lanes where possible to make your journey safer and more comfortable.'
+  },
+  {
+    title: 'Avoid Peak Stress',
+    text: 'Try riding during quieter hours to enjoy a smoother and less stressful trip.'
+  },
+  {
+    title: 'Plan Before You Ride',
+    text: 'Check your route before leaving, especially around busy intersections and tram corridors.'
+  },
+  {
+    title: 'Every Ride Counts',
+    text: 'Each cycling trip helps reduce congestion and supports a cleaner Melbourne CBD.'
+  },
+  {
+    title: 'Ride with Confidence',
+    text: 'Safe cycling is not about speed. It is about awareness, control, and good route choices.'
+  },
+  {
+    title: 'Use Visibility',
+    text: 'Wear visible clothing and use lights when riding in low-light conditions.'
+  },
+  {
+    title: 'Take Breaks',
+    text: 'If the weather feels uncomfortable, pause your trip and continue when conditions improve.'
+  },
+  {
+    title: 'Enjoy the City',
+    text: 'Cycling can turn a normal commute into a more active and enjoyable city experience.'
+  },
+  {
+    title: 'Be Predictable',
+    text: 'Signal early, keep a steady line, and make your movements clear to other road users.'
+  }
+]
+
+const randomTips = computed(() => {
+  return [...cyclingTips]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+})
 </script>
 
 <template>
@@ -23,6 +72,25 @@ const today = computed(() => new Date().toLocaleDateString('en-AU', {
         <p>{{ card.detail }}</p>
       </article>
     </div>
+
+    <section class="tips-section">
+      <div class="tips-heading">
+        <p class="eyebrow">Positive Cycling Tips</p>
+        <h2>Small choices can make every ride safer</h2>
+      </div>
+
+      <div class="tips-grid">
+        <article
+          v-for="tip in randomTips"
+          :key="tip.title"
+          class="tip-card"
+        >
+          <div class="tip-icon">🚴</div>
+          <h3>{{ tip.title }}</h3>
+          <p>{{ tip.text }}</p>
+        </article>
+      </div>
+    </section>
   </section>
 </template>
 
@@ -37,4 +105,65 @@ article span { color: #526780; font-weight: 800; }
 article strong { display: block; margin-top: 16px; color: #2f855f; font-size: 2rem; }
 article p { color: #526780; line-height: 1.6; }
 @media (max-width: 820px) { .insights-shell { padding: 28px 14px; } .insight-grid { grid-template-columns: 1fr; } article { min-height: 0; } }
+.tips-section {
+  margin-top: 34px;
+  padding: 28px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 36px rgba(31, 68, 128, 0.14);
+}
+
+.tips-heading {
+  margin-bottom: 20px;
+}
+
+.tips-heading h2 {
+  margin: 0;
+  color: #24406f;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+}
+
+.tips-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.tip-card {
+  min-height: 180px;
+  padding: 22px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(239, 247, 255, 0.92));
+  box-shadow: 0 10px 26px rgba(31, 68, 128, 0.12);
+}
+
+.tip-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: #e6f4ee;
+  font-size: 1.4rem;
+}
+
+.tip-card h3 {
+  margin: 0 0 10px;
+  color: #24406f;
+  font-size: 1.2rem;
+}
+
+.tip-card p {
+  margin: 0;
+  color: #526780;
+  line-height: 1.55;
+}
+
+@media (max-width: 820px) {
+  .tips-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

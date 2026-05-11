@@ -20,11 +20,7 @@ import { useRoute } from 'vue-router'
 const logoSrc = '/cycling.png'
 const route = useRoute()
 
-const brandName = computed(() =>
-  route.path.startsWith('/dev')
-    ? 'Knackeredlad SmartCycle Navigator'
-    : 'SmartCycle Navigator'
-)
+const brandName = computed(() => 'KnackCBD Ride')
 
 const navBase = computed(() => {
   if (route.path.startsWith('/dev')) {
