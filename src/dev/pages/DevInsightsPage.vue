@@ -71,25 +71,24 @@ const cyclingTips = [
   }
 ]
 
-const tipSeed = ref(0)
+function getRandomTips() {
+  const shuffledTips = [...cyclingTips]
 
-const today = computed(() => new Date().toLocaleDateString('en-AU', {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric'
-}))
+  for (let i = shuffledTips.length - 1; i > 0; i -= 1) {
+    const randomIndex = Math.floor(Math.random() * (i + 1))
+    const currentTip = shuffledTips[i]
 
-const randomTips = computed(() => {
-  tipSeed.value
+    shuffledTips[i] = shuffledTips[randomIndex]
+    shuffledTips[randomIndex] = currentTip
+  }
 
-  return [...cyclingTips]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3)
-})
+  return shuffledTips.slice(0, 3)
+}
+
+const randomTips = ref(getRandomTips())
 
 function refreshTips() {
-  tipSeed.value += 1
+  randomTips.value = getRandomTips()
 }
 </script>
 
