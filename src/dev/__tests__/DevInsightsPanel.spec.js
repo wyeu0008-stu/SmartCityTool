@@ -12,7 +12,11 @@ describe('DevInsightsPanel', () => {
     expect(wrapper.text()).toContain('Safety Insights')
     expect(wrapper.text()).toContain('Daily Cycling Conditions')
     expect(wrapper.text()).toContain('Release Status')
-    expect(wrapper.findAll('article')).toHaveLength(3)
+
+    expect(wrapper.findAll('.condition-card')).toHaveLength(3)
+    expect(wrapper.findAll('.tip-card')).toHaveLength(3)
+
+    expect(wrapper.text()).toContain('Positive Cycling Tips')
 
     vi.useRealTimers()
   })
