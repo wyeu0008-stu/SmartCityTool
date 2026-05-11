@@ -134,13 +134,13 @@ onBeforeUnmount(() => {
         <button class="find-button" type="submit">Find Safest Route</button>
       </form>
 
-      <section class="safety-analysis-card" aria-label="How safety is analysed">
+      <section class="safety-analysis-card" aria-label="Plan a comfortable ride">
         <div class="analysis-header">
           <div class="analysis-icon">S</div>
           <div>
-            <h2>How KnackCBD Ride Analyses Safety</h2>
+            <h2>Plan A Safer Ride Around The City</h2>
             <p>
-              Each route is checked using road safety, crash history, traffic exposure, and cycling infrastructure.
+              Choose a destination, compare ride options, and open the map to find a route that feels right for your trip.
             </p>
           </div>
         </div>
@@ -148,22 +148,22 @@ onBeforeUnmount(() => {
         <div class="analysis-steps">
           <div class="analysis-step">
             <span>1</span>
-            <p>The route is divided into road sections for safety checking.</p>
+            <p>Enter where you want to go in Melbourne.</p>
           </div>
           <div class="analysis-step">
             <span>2</span>
-            <p>Each section is reviewed for possible cycling risk.</p>
+            <p>View suggested rides with distance and travel time.</p>
           </div>
           <div class="analysis-step">
             <span>3</span>
-            <p>The final safety score combines route risk and bike-lane coverage.</p>
+            <p>Open the map and follow the option that suits you best.</p>
           </div>
         </div>
 
         <div class="analysis-actions">
-          <button type="button" @click="openMap">Open Safety Map</button>
+          <button type="button" @click="openMap">Open Map</button>
           <span class="analysis-badge">AI</span>
-          <span>Safety score support</span>
+          <span>Ride planning support</span>
         </div>
       </section>
       <section class="compare-section" aria-label="Popular cycling tourism routes">
