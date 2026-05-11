@@ -1,11 +1,42 @@
 <script setup>
 /* c8 ignore file */
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 const destination = ref('')
+const showDestinationSuggestions = ref(false)
+const searchForm = ref(null)
+
+const destinationSuggestions = [
+  'Flinders Street Station',
+  'State Library Victoria',
+  'Melbourne Cricket Ground',
+  'Docklands',
+  'Carlton Gardens',
+  'Flagstaff Station',
+  'Queen Victoria Market',
+  'Southbank'
+]
+
+const filteredDestinationSuggestions = computed(() => {
+  const query = destination.value.trim().toLowerCase()
+
+  if (!query) {
+    return destinationSuggestions.slice(0, 6)
+  }
+
+  return destinationSuggestions
+    .filter((item) => item.toLowerCase().includes(query))
+    .slice(0, 6)
+})
+
+function closeSuggestionsOnOutsideClick(event) {
+  if (!searchForm.value?.contains(event.target)) {
+    showDestinationSuggestions.value = false
+  }
+}
 
 const tourismRoutes = [
   { id: 'yarra', name: 'Yarra River Ride', area: 'Southbank to Abbotsford', destination: 'Abbotsford Convent', time: '42 mins', distance: '11.2 km', vibe: 'River views', color: '#34c759' },
@@ -22,12 +53,19 @@ const featuredTourismRoutes = computed(() => {
     .slice(0, 3)
 })
 
+function selectDestinationSuggestion(suggestion) {
+  destination.value = suggestion
+  showDestinationSuggestions.value = false
+}
+
 function openMap(target = '') {
   const requestedDestination = typeof target === 'string'
     ? target
     : destination.value
   const targetDestination = requestedDestination.trim()
   const mapPath = route.path.startsWith('/dev') ? '/dev/map' : '/map'
+
+  showDestinationSuggestions.value = false
 
   if (!targetDestination) {
     router.push(mapPath)
@@ -43,51 +81,91 @@ function openMap(target = '') {
     }
   })
 }
+
+onMounted(() => {
+  document.addEventListener('click', closeSuggestionsOnOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeSuggestionsOnOutsideClick)
+})
 </script>
 
 <template>
   <main class="release-home" data-test="dev-home-panel">
     <section class="hero-panel">
       <div class="hero-copy">
-        <h1>knackeredlad SmartCycle Navigator</h1>
+        <h1>KnackCBD Ride</h1>
         <p>A Smart Cycling Safety and Decision Support System</p>
         <p>Using Open Mobility Data</p>
       </div>
 
-      <form class="route-search" @submit.prevent="openMap">
-        <label class="field">
-          <span class="pin-icon hollow">🔍</span>
-          <input
-            v-model="destination"
-            placeholder="Enter Destination"
-          />
-        </label>
-        <button class="find-button" type="submit">Find Safest Route</button>
-      </form>
+      <form
+        ref="searchForm"
+        class="route-search"
+        :class="{ 'has-suggestions': showDestinationSuggestions && filteredDestinationSuggestions.length }"
+        @submit.prevent="openMap"
+      >
+        <div class="home-search-box">
+          <label class="field">
+            <span class="pin-icon hollow">🔍</span>
+            <input
+              v-model="destination"
+              placeholder="Enter Destination"
+              @focus="showDestinationSuggestions = true"
+              @click="showDestinationSuggestions = true"
+            />
+          </label>
 
-      <section class="recommendation-card analysis-card" aria-label="Safety route analysis method">
-        <div class="route-main">
-          <div class="shield">S</div>
-          <div>
-            <h2>How SmartCycle Analyses Safety</h2>
-            <p>Each candidate route is scored from road-segment risk, crash history, traffic exposure, and cycling infrastructure.</p>
+          <div v-if="showDestinationSuggestions && filteredDestinationSuggestions.length" class="home-suggestion-list">
+            <button
+              v-for="suggestion in filteredDestinationSuggestions"
+              :key="suggestion"
+              type="button"
+              class="home-suggestion-option"
+              @click="selectDestinationSuggestion(suggestion)"
+            >
+              <span class="history-icon">↻</span>
+              <span>{{ suggestion }}</span>
+            </button>
           </div>
         </div>
 
-        <ul class="route-alerts analysis-list">
-          <li><span class="warning">1</span> The backend reads ordered road segments for the route.</li>
-          <li><span class="warning">2</span> The local risk model estimates risk for each matched segment.</li>
-          <li><span class="danger">3</span> Route scores combine average risk, high-risk segments, and protected-lane coverage.</li>
-        </ul>
+        <button class="find-button" type="submit">Find Safest Route</button>
+      </form>
 
-        <div class="route-stats">
+      <section class="safety-analysis-card" aria-label="How safety is analysed">
+        <div class="analysis-header">
+          <div class="analysis-icon">S</div>
+          <div>
+            <h2>How KnackCBD Ride Analyses Safety</h2>
+            <p>
+              Each route is checked using road safety, crash history, traffic exposure, and cycling infrastructure.
+            </p>
+          </div>
+        </div>
+
+        <div class="analysis-steps">
+          <div class="analysis-step">
+            <span>1</span>
+            <p>The route is divided into road sections for safety checking.</p>
+          </div>
+          <div class="analysis-step">
+            <span>2</span>
+            <p>Each section is reviewed for possible cycling risk.</p>
+          </div>
+          <div class="analysis-step">
+            <span>3</span>
+            <p>The final safety score combines route risk and bike-lane coverage.</p>
+          </div>
+        </div>
+
+        <div class="analysis-actions">
           <button type="button" @click="openMap">Open Safety Map</button>
-          <strong>AI</strong>
-          <span>Segment model</span>
-          <small>Database backed</small>
+          <span class="analysis-badge">AI</span>
+          <span>Safety score support</span>
         </div>
       </section>
-
       <section class="compare-section" aria-label="Popular cycling tourism routes">
         <h2>Popular Cycling Trips</h2>
         <div class="compare-grid">
@@ -142,7 +220,6 @@ function openMap(target = '') {
 
 .hero-copy,
 .route-search,
-.recommendation-card,
 .compare-section {
   position: relative;
   z-index: 1;
@@ -183,6 +260,62 @@ function openMap(target = '') {
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(22px);
+}
+
+.route-search.has-suggestions {
+  margin-bottom: 298px;
+}
+
+.home-search-box {
+  position: relative;
+  min-width: 0;
+}
+
+.home-suggestion-list {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  left: 0;
+  z-index: 30;
+  max-height: 286px;
+  overflow-y: auto;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(18px);
+}
+
+.home-suggestion-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: #424245;
+  text-align: left;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.home-suggestion-option:hover {
+  background: rgba(0, 113, 227, 0.08);
+}
+
+.history-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(60, 60, 67, 0.1);
+  color: #6e6e73;
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .field {
@@ -242,154 +375,132 @@ function openMap(target = '') {
   font-size: 1rem;
 }
 
-.recommendation-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
-  gap: 18px 24px;
-  margin-top: 34px;
-  padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.68);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.11);
-  backdrop-filter: blur(22px);
+.safety-analysis-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 1040px);
+  margin: 34px auto 0;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(20px);
 }
 
-.analysis-card {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.route-main {
+.analysis-header {
   display: flex;
-  gap: 14px;
+  gap: 18px;
   align-items: center;
 }
 
-.shield {
+.analysis-icon,
+.analysis-badge {
   display: grid;
-  flex: 0 0 auto;
   place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 15px;
+  flex: 0 0 auto;
+  border-radius: 18px;
   background: #34c759;
   color: #ffffff;
-  font-size: 1.6rem;
   font-weight: 900;
 }
 
-.route-main h2,
-.compare-section h2 {
-  margin: 0;
-  color: #1d1d1f;
-  font-size: 1.15rem;
+.analysis-icon {
+  width: 62px;
+  height: 62px;
+  font-size: 2rem;
 }
 
-.route-main p {
+.analysis-header h2 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 1.4rem;
+}
+
+.analysis-header p {
   margin: 8px 0 0;
   color: #6e6e73;
-}
-
-.route-score {
-  color: #1d1d1f;
-}
-
-.route-score strong {
-  margin-left: 12px;
-  color: #34c759;
-  font-size: 1.45rem;
-}
-
-.score-bar {
-  height: 9px;
-  margin-top: 12px;
-  overflow: hidden;
-  border-radius: 99px;
-  background: #e8eaed;
-}
-
-.score-bar span {
-  display: block;
-  height: 100%;
-  background: #34c759;
-}
-
-.route-alerts {
-  display: grid;
-  gap: 9px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: #424245;
-}
-
-.analysis-list {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.analysis-list li {
-  min-height: 92px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(245, 245, 247, 0.72);
+  font-size: 1rem;
   line-height: 1.45;
 }
 
-.warning {
-  display: inline-grid;
+.analysis-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.analysis-step {
+  display: flex;
+  gap: 12px;
+  min-height: 112px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(245, 245, 247, 0.78);
+  text-align: left;
+}
+
+.analysis-step span {
+  display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 6px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
   border-radius: 50%;
   background: #ff9f0a;
   color: #ffffff;
-  font-size: 0.8rem;
   font-weight: 900;
 }
 
-.danger {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 6px;
-  border-radius: 50%;
+.analysis-step:nth-child(3) span {
   background: #ff375f;
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 900;
 }
 
-.route-stats {
+.analysis-step p {
+  margin: 0;
+  color: #424245;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.analysis-actions {
   display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin-top: 22px;
+  color: #424245;
+  font-weight: 700;
 }
 
-.route-stats button {
-  padding: 10px 14px;
+.analysis-actions button {
+  min-height: 42px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
   background: rgba(0, 113, 227, 0.12);
   color: #0066cc;
+  cursor: pointer;
+  font-weight: 900;
 }
 
-.route-stats strong {
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: #34c759;
-  color: #ffffff;
-}
-
-.route-stats small {
-  color: #34c759;
+.analysis-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  font-size: 1rem;
 }
 
 .compare-section {
   margin-top: 32px;
   text-align: center;
+}
+
+.compare-section h2 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 1.15rem;
 }
 
 .compare-grid {
@@ -454,12 +565,8 @@ function openMap(target = '') {
 }
 
 @media (max-width: 900px) {
-  .recommendation-card,
-  .compare-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .analysis-list {
+  .compare-grid,
+  .analysis-steps {
     grid-template-columns: 1fr;
   }
 }
@@ -488,7 +595,6 @@ function openMap(target = '') {
   }
 
   .route-search,
-  .recommendation-card,
   .compare-card {
     padding: 14px;
   }
@@ -498,21 +604,40 @@ function openMap(target = '') {
     border-radius: 20px;
   }
 
-  .field {
-    min-height: 44px;
-    padding: 0 12px;
+  .route-search.has-suggestions {
+    margin-bottom: 0;
   }
 
-  .route-main {
+  .safety-analysis-card {
+    margin-top: 20px;
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .analysis-header {
     align-items: flex-start;
   }
 
-  .route-score strong {
-    margin-left: 8px;
+  .analysis-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    font-size: 1.5rem;
   }
 
-  .route-stats {
-    justify-content: flex-start;
+  .analysis-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .home-suggestion-list {
+    position: static;
+    margin-top: 8px;
+  }
+
+  .field {
+    min-height: 44px;
+    padding: 0 12px;
   }
 
   .metric-row {
