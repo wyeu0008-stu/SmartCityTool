@@ -18,11 +18,12 @@ describe('ReleaseHomePage', () => {
     vi.clearAllMocks()
   })
 
-  it('renders synced planner hero, safety analysis, and tourism cards', () => {
+  it('renders synced planner hero, ride-planning content, and tourism cards', () => {
     const wrapper = mount(ReleaseHomePage)
 
     expect(wrapper.text()).toContain('KnackCBD Ride')
-    expect(wrapper.text()).toContain('How KnackCBD Ride Analyses Safety')
+    expect(wrapper.text()).toContain('Plan A Safer Ride Around The City')
+    expect(wrapper.text()).toContain('Ride planning support')
     expect(wrapper.text()).toContain('Popular Cycling Trips')
     expect(wrapper.findAll('.compare-card')).toHaveLength(3)
     expect(wrapper.text()).not.toContain('Compare All Routes')
