@@ -43,6 +43,7 @@ const originQuery = ref('Current Location')
 const destinationQuery = ref('')
 const selectedDestinationId = ref('')
 const customDestination = ref(null)
+const selectedStops = ref([])
 const locationWarning = ref('')
 const roadRouteOptions = ref({
   safest: [],
@@ -58,6 +59,8 @@ const DEFAULT_ACTIVE_TOGGLES = ['safeRoutes', 'bikeLanes']
 const activeToggles = ref([...DEFAULT_ACTIVE_TOGGLES])
 const showLayerControls = ref(false)
 const showRouteDetails = ref(false)
+const showDestinationSuggestions = ref(false)
+const navigationStarted = ref(false)
 const routeVisuals = {
   safest: {
     color: '#34c759',
@@ -86,6 +89,7 @@ const mapToggles = computed(() => [
 const mapContainer = ref(null)
 let map
 let routeLayer
+let arrowLayer
 let safeZonesLayer
 let riskLayer
 let popularLayer
@@ -95,26 +99,117 @@ let toiletLayer
 let waterLayer
 let cityBoundaryLayer
 let startMarker
+let stopMarkers = []
 let destinationMarker
+function getStopKey(stop) {
+  return `${stop.type}-${stop.coords[0]}-${stop.coords[1]}`
+}
+
+function addRouteStop(stop) {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
+    showLocationWarning('Search a destination before adding a stop.')
+    return
+  }
+
+  const stopKey = getStopKey(stop)
+  const alreadyAdded = selectedStops.value.some((item) => getStopKey(item) === stopKey)
+
+  if (!alreadyAdded) {
+    selectedStops.value = [...selectedStops.value, stop]
+    navigationStarted.value = false
+  }
+
+  refreshRoadRoute()
+}
+
+function removeRouteStop(stopToRemove) {
+  const stopKey = getStopKey(stopToRemove)
+  selectedStops.value = selectedStops.value.filter((stop) => getStopKey(stop) !== stopKey)
+  navigationStarted.value = false
+  refreshRoadRoute()
+}
+
+function clearRouteStops() {
+  selectedStops.value = []
+  navigationStarted.value = false
+  refreshRoadRoute()
+}
+
+function createStopPopup(stop, distanceM, extraLine = '') {
+  const stopData = encodeURIComponent(JSON.stringify(stop))
+  const extraContent = extraLine ? `${extraLine}<br/>` : ''
+
+  return `
+    <strong>${stop.name}</strong><br/>
+    ${extraContent}📍 Distance: ${distanceM}m<br/>
+    <button class="add-stop-popup-button" data-stop="${stopData}">Add as stop</button>
+  `
+}
+
+function bindAddStopPopup(marker, stop, distanceM, extraLine = '') {
+  marker.bindPopup(createStopPopup(stop, distanceM, extraLine))
+
+  marker.on?.('popupopen', (event) => {
+    const popupElement = event.popup?.getElement?.()
+    const button = popupElement?.querySelector?.('.add-stop-popup-button')
+
+    button?.addEventListener('click', () => {
+      const stopPayload = button.getAttribute('data-stop')
+      if (!stopPayload) return
+
+      addRouteStop(JSON.parse(decodeURIComponent(stopPayload)))
+      map.closePopup?.()
+    }, { once: true })
+  })
+}
 
 const currentLocation = plannerLocations.find((location) => location.id === 'current')
 const userCurrentCoords = ref(currentLocation.coords)
 const isUsingRealLocation = ref(false)
 
 const destinationOptions = computed(() =>
-  plannerLocations.filter((location) => location.id !== 'current')
+  plannerLocations.filter((location) =>
+    location.id !== 'current' && location.name.toLowerCase() !== 'new park'
+  )
 )
+
+const popularDestinationSuggestions = [
+  { id: 'suggest-state-library', name: 'State Library Victoria', coords: [-37.8098, 144.9652] },
+  { id: 'suggest-mcg', name: 'Melbourne Cricket Ground', coords: [-37.8199, 144.9834] },
+  { id: 'suggest-docklands', name: 'Docklands', coords: [-37.8152, 144.9483] },
+  { id: 'suggest-carlton-gardens', name: 'Carlton Gardens', coords: [-37.8063, 144.9717] },
+  { id: 'suggest-flagstaff-station', name: 'Flagstaff Station', coords: [-37.8119, 144.9557] },
+  { id: 'suggest-flagstaff', name: 'Flagstaff Gardens', coords: [-37.8101, 144.9544] },
+  { id: 'suggest-queen-victoria-market', name: 'Queen Victoria Market', coords: [-37.8076, 144.9568] },
+  { id: 'suggest-southbank', name: 'Southbank', coords: [-37.8217, 144.9646] }
+]
+
+const destinationSuggestionPool = computed(() => {
+  const mergedLocations = [...destinationOptions.value, ...popularDestinationSuggestions]
+  const seenNames = new Set()
+
+  return mergedLocations.filter((location) => {
+    const nameKey = location.name.toLowerCase()
+
+    if (seenNames.has(nameKey)) {
+      return false
+    }
+
+    seenNames.add(nameKey)
+    return true
+  })
+})
 
 const filteredDestinations = computed(() => {
   const query = destinationQuery.value.trim().toLowerCase()
 
   if (!query) {
-    return []
+    return destinationSuggestionPool.value.slice(0, 6)
   }
 
-  return destinationOptions.value.filter((location) =>
-    location.name.toLowerCase().includes(query)
-  )
+  return destinationSuggestionPool.value
+    .filter((location) => location.name.toLowerCase().includes(query))
+    .slice(0, 6)
 })
 
 const selectedDestination = computed(() => {
@@ -321,7 +416,9 @@ async function resolveOriginInput() {
 }
 
 function showNearbyFacilities(type, userCoords) {
-  const [lat, lng] = userCoords
+  const [lat, lng] = destinationQuery.value.trim() && selectedDestination.value?.coords
+    ? getRouteSearchCenter()
+    : userCoords
   const queryTag = type === 'toilets'
     ? 'node["amenity"="toilets"]'
     : 'node["amenity"="drinking_water"]'
@@ -329,7 +426,7 @@ function showNearbyFacilities(type, userCoords) {
   const query = `
     [out:json][timeout:12];
     (
-      ${queryTag}(around:1500,${lat},${lng});
+      ${queryTag}(around:850,${lat},${lng});
     );
     out center 20;
   `
@@ -342,7 +439,9 @@ function showNearbyFacilities(type, userCoords) {
     .then((data) => {
       const facilities = (data.elements || [])
         .filter((item) => item.lat && item.lon)
-        .slice(0, 12)
+        .filter((item) => !destinationQuery.value.trim() || isNearCurrentRoute(item.lat, item.lon))
+        .sort((a, b) => getDistanceToCurrentRouteKm(a.lat, a.lon) - getDistanceToCurrentRouteKm(b.lat, b.lon))
+        .slice(0, 7)
 
       if (type === 'toilets' && toiletLayer) {
         map.removeLayer(toiletLayer)
@@ -355,13 +454,20 @@ function showNearbyFacilities(type, userCoords) {
       const layer = L.layerGroup(
         facilities.map((item) => {
           const name = item.tags?.name || (type === 'toilets' ? 'Public Toilet' : 'Drinking Water')
-          const distanceM = Math.round(getDistanceInKm(lat, lng, item.lat, item.lon) * 1000)
+          const distanceM = Math.round(getDistanceToCurrentRouteKm(item.lat, item.lon) * 1000)
 
-          return L.marker([item.lat, item.lon], {
+          const stop = {
+            name,
+            type,
+            coords: [item.lat, item.lon]
+          }
+          const marker = L.marker([item.lat, item.lon], {
             icon: createFacilityMarker(type)
-          }).bindPopup(
-            `<strong>${name}</strong><br/>📍 Distance: ${distanceM}m`
-          )
+          })
+
+          bindAddStopPopup(marker, stop, distanceM)
+
+          return marker
         })
       ).addTo(map)
 
@@ -372,7 +478,13 @@ function showNearbyFacilities(type, userCoords) {
       }
     })
     .catch(() => {
-      alert(`Unable to load nearby ${type === 'toilets' ? 'toilets' : 'water points'}`)
+      if (type === 'toilets') {
+        toiletLayer = null
+      }
+
+      if (type === 'water') {
+        waterLayer = null
+      }
     })
 }
 
@@ -384,9 +496,12 @@ function chooseDestination(location) {
 
   clearLocationWarning()
   customDestination.value = null
+  selectedStops.value = []
+  navigationStarted.value = false
   destinationQuery.value = location.name
   selectedDestinationId.value = location.id
   activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
+  showDestinationSuggestions.value = false
   refreshRoadRoute()
 }
 
@@ -423,6 +538,8 @@ async function searchRoute() {
     }
 
     clearLocationWarning()
+    selectedStops.value = []
+    navigationStarted.value = false
     customDestination.value = {
       id: 'custom-destination',
       name: resolvedDestination.name,
@@ -431,10 +548,69 @@ async function searchRoute() {
     selectedDestinationId.value = matchedDestination?.id || 'custom-destination'
     destinationQuery.value = rawQuery
     activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
+    showDestinationSuggestions.value = false
     await refreshRoadRoute()
   } catch (error) {
     showLocationWarning(error.message || 'Unable to search this route right now')
   }
+}
+function startNavigation() {
+  if (!selectedDestination.value?.coords) {
+    showLocationWarning('Search a destination before starting navigation.')
+    return
+  }
+
+  navigationStarted.value = true
+  showRouteDetails.value = false
+  updateMapScene()
+  focusDestination(selectedDestination.value.coords)
+}
+
+function stopNavigation() {
+  navigationStarted.value = false
+  updateMapScene()
+}
+
+function getRouteBearing(startPoint, endPoint) {
+  const [startLat, startLng] = startPoint.map(Number)
+  const [endLat, endLng] = endPoint.map(Number)
+  const startLatRad = startLat * Math.PI / 180
+  const endLatRad = endLat * Math.PI / 180
+  const lngDiffRad = (endLng - startLng) * Math.PI / 180
+  const y = Math.sin(lngDiffRad) * Math.cos(endLatRad)
+  const x = Math.cos(startLatRad) * Math.sin(endLatRad) -
+    Math.sin(startLatRad) * Math.cos(endLatRad) * Math.cos(lngDiffRad)
+
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
+}
+
+function buildNavigationArrows() {
+  if (!navigationStarted.value || routePathToDraw.value.length < 3) {
+    arrowLayer = L.layerGroup([])
+    return
+  }
+
+  const path = routePathToDraw.value
+  const arrowStep = Math.max(18, Math.ceil(path.length / 6))
+  const arrowMarkers = path
+    .map((point, index) => ({ point, index }))
+    .filter(({ index }) => index > 0 && index < path.length - 8 && index % arrowStep === 0)
+    .map(({ point, index }) => {
+      const nextPoint = path[Math.min(index + 6, path.length - 1)]
+      const bearing = getRouteBearing(point, nextPoint) - 90
+
+      return L.marker(point, {
+        icon: L.divIcon({
+          className: 'navigation-arrow-wrapper',
+          html: `<div class="navigation-arrow" style="transform: rotate(${bearing}deg)">➤</div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        }),
+        interactive: false
+      })
+    })
+
+  arrowLayer = L.layerGroup(arrowMarkers).addTo(map)
 }
 
 function applyDestinationFromQuery() {
@@ -646,19 +822,55 @@ async function fetchOsrmRouteOptions() {
 
   const [startLat, startLng] = userCurrentCoords.value
   const [endLat, endLng] = selectedDestination.value.coords
+  const stopCoordinates = selectedStops.value
+    .map((stop) => `${stop.coords[1]},${stop.coords[0]}`)
+    .join(';')
+  const routeCoordinates = stopCoordinates
+    ? `${startLng},${startLat};${stopCoordinates};${endLng},${endLat}`
+    : `${startLng},${startLat};${endLng},${endLat}`
 
-  const response = await fetch(
-    `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&alternatives=3`
-  )
-  const data = await response.json()
-  const routeResults = data.routes || []
+  const routeServiceUrls = [
+    `https://router.project-osrm.org/route/v1/driving/${routeCoordinates}?overview=full&geometries=geojson&alternatives=3`,
+    `https://routing.openstreetmap.de/routed-bike/route/v1/bike/${routeCoordinates}?overview=full&geometries=geojson&alternatives=3`,
+    `https://router.project-osrm.org/route/v1/foot/${routeCoordinates}?overview=full&geometries=geojson&alternatives=3`
+  ]
+  let data = null
+
+  for (const serviceUrl of routeServiceUrls) {
+    try {
+      const response = await fetch(serviceUrl)
+      const result = await response.json()
+
+      if (result.routes?.length) {
+        data = result
+        break
+      }
+    } catch {
+      data = null
+    }
+  }
+
+  const routeResults = data?.routes || []
 
   if (!routeResults.length) {
     throw new Error('OSRM did not return a drawable route.')
   }
 
+  const straightDistanceKm = getDistanceInKm(startLat, startLng, endLat, endLng)
+  const maxReasonableDistanceKm = Math.max(straightDistanceKm * 3.5, straightDistanceKm + 4)
+  const reasonableRouteResults = routeResults.filter((routeResult) => {
+    const distanceKm = routeResult.distance / 1000
+    return distanceKm <= maxReasonableDistanceKm
+  })
+
+  if (!reasonableRouteResults.length) {
+    throw new Error('Route service returned an unreasonable detour.')
+  }
+
+  const routesToFormat = reasonableRouteResults
+
   const cyclingSpeedKmh = 15
-  const formattedRoutes = routeResults.map((routeResult) => {
+  const formattedRoutes = routesToFormat.map((routeResult) => {
     const distanceKm = Number((routeResult.distance / 1000).toFixed(1))
     const path = routeResult.geometry.coordinates.map(([lng, lat]) => [lat, lng])
 
@@ -721,6 +933,25 @@ async function fetchOsrmRouteOptions() {
   }
 }
 
+function buildFallbackCityRoute() {
+  const start = userCurrentCoords.value
+  const end = selectedDestination.value.coords
+  const stopPoints = selectedStops.value.map((stop) => stop.coords)
+  const path = [start, ...stopPoints, end]
+  const distanceKm = path
+    .slice(1)
+    .reduce((totalDistance, point, index) => {
+      const previousPoint = path[index]
+      return totalDistance + getDistanceInKm(previousPoint[0], previousPoint[1], point[0], point[1])
+    }, 0)
+
+  return {
+    path,
+    distanceKm: Number(distanceKm.toFixed(1)),
+    durationMin: Math.max(1, Math.round((distanceKm / 15) * 60))
+  }
+}
+
 async function loadOsrmRoadRoute() {
   if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
     resetRouteResults()
@@ -737,7 +968,23 @@ async function loadOsrmRoadRoute() {
       activeMode.value = 'safest'
     }
   } catch (error) {
-    resetRouteResults()
+    const fallbackRoute = buildFallbackCityRoute()
+    roadRouteOptions.value = {
+      safest: fallbackRoute.path,
+      fastest: [],
+      shortest: []
+    }
+    routeStats.value = {
+      safest: {
+        distanceKm: fallbackRoute.distanceKm,
+        durationMin: fallbackRoute.durationMin,
+        routeTypeLabel: 'Safest Route',
+        explanation: 'Using a simplified city route preview because the live routing service returned an unreliable route.'
+      },
+      fastest: null,
+      shortest: null
+    }
+    activeMode.value = 'safest'
   }
 }
 
@@ -769,6 +1016,25 @@ function getDistanceInKm(lat1, lon1, lat2, lon2) {
     Math.sin(dLon / 2)
 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function getRouteSearchCenter() {
+  const path = routePathToDraw.value.length ? routePathToDraw.value : [userCurrentCoords.value]
+  const middlePoint = path[Math.floor(path.length / 2)] || userCurrentCoords.value
+
+  return middlePoint
+}
+
+function getDistanceToCurrentRouteKm(lat, lng) {
+  const path = routePathToDraw.value.length ? routePathToDraw.value : [userCurrentCoords.value]
+
+  return Math.min(
+    ...path.map(([routeLat, routeLng]) => getDistanceInKm(lat, lng, routeLat, routeLng))
+  )
+}
+
+function isNearCurrentRoute(lat, lng, maxDistanceKm = 0.28) {
+  return getDistanceToCurrentRouteKm(lat, lng) <= maxDistanceKm
 }
 
 function findNearestBikeParking(userCoords, geojson, limit = 5) {
@@ -829,7 +1095,7 @@ function showDedicatedBikeLanes() {
       }).addTo(map)
     })
     .catch(() => {
-      alert('Unable to load dedicated bike lane data')
+      bikeLaneLayer = null
     })
 }
 
@@ -837,7 +1103,21 @@ function showNearestBikeParking(userCoords) {
   fetch('/bike_parking.geojson')
     .then((res) => res.json())
     .then((data) => {
-      const nearestParking = findNearestBikeParking(userCoords, data, 12)
+      const nearestParking = (destinationQuery.value.trim() && selectedDestination.value?.coords
+        ? data.features
+            .filter((feature) => feature.geometry?.type === 'Point')
+            .map((feature) => {
+              const [lng, lat] = feature.geometry.coordinates
+
+              return {
+                ...feature,
+                distanceKm: getDistanceToCurrentRouteKm(lat, lng)
+              }
+            })
+            .filter((parking) => parking.distanceKm <= 0.28)
+            .sort((a, b) => a.distanceKm - b.distanceKm)
+            .slice(0, 7)
+        : findNearestBikeParking(userCoords, data, 7))
 
       if (parkingLayer) {
         map.removeLayer(parkingLayer)
@@ -850,16 +1130,23 @@ function showNearestBikeParking(userCoords) {
           const capacity = parking.properties?.capacity || parking.properties?.spaces || 'Unknown'
           const distanceM = Math.round(parking.distanceKm * 1000)
 
-          return L.marker([lat, lng], {
+          const stop = {
+            name,
+            type: 'bikeParking',
+            coords: [lat, lng]
+          }
+          const marker = L.marker([lat, lng], {
             icon: createHtmlMarker('P', 'is-parking')
-          }).bindPopup(
-            `<strong>${name}</strong><br/>🚲 Capacity: ${capacity}<br/>📍 Distance: ${distanceM}m`
-          )
+          })
+
+          bindAddStopPopup(marker, stop, distanceM, `🚲 Capacity: ${capacity}`)
+
+          return marker
         })
       ).addTo(map)
     })
     .catch(() => {
-      alert('Unable to load bike parking data')
+      parkingLayer = null
     })
 }
 
@@ -938,9 +1225,10 @@ function createHtmlMarker(label, modifier = '') {
 }
 
 function resetLeafletLayers() {
-  ;[routeLayer, safeZonesLayer, riskLayer, popularLayer, parkingLayer, bikeLaneLayer, toiletLayer, waterLayer, startMarker, destinationMarker]
+  ;[routeLayer, arrowLayer, safeZonesLayer, riskLayer, popularLayer, parkingLayer, bikeLaneLayer, toiletLayer, waterLayer, startMarker, ...stopMarkers, destinationMarker]
     .filter(Boolean)
     .forEach((layer) => map.removeLayer(layer))
+  stopMarkers = []
 }
 
 function getMelbourneCityBounds() {
@@ -1017,21 +1305,7 @@ function buildRouteLayer() {
 }
 
 function buildSafeZonesLayer() {
-  safeZonesLayer = L.layerGroup(
-    releaseSafeZones.map((zone) =>
-      L.circle(zone.coords, {
-        radius: zone.radius,
-        color: '#45a875',
-        weight: 1.5,
-        fillColor: '#45a875',
-        fillOpacity: 0.16
-      }).bindTooltip(zone.label)
-    )
-  )
-
-  if (hasToggle('safeRoutes')) {
-    safeZonesLayer.addTo(map)
-  }
+  safeZonesLayer = L.layerGroup([])
 }
 
 function buildRiskLayer() {
@@ -1082,6 +1356,12 @@ function buildEndpoints() {
     icon: createHtmlMarker(isUsingRealLocation.value ? 'You' : 'Start', 'is-start')
   }).addTo(map)
 
+  stopMarkers = selectedStops.value.map((stop, index) =>
+    L.marker(stop.coords, {
+      icon: createHtmlMarker(`Stop ${index + 1}`, 'is-stop')
+    }).addTo(map)
+  )
+
   destinationMarker = L.marker(selectedDestination.value.coords, {
     icon: createHtmlMarker(selectedDestination.value.name, 'is-destination')
   }).addTo(map)
@@ -1094,6 +1374,7 @@ function updateMapScene() {
 
   resetLeafletLayers()
   buildRouteLayer()
+  buildNavigationArrows()
   buildSafeZonesLayer()
   buildRiskLayer()
   buildPopularLayer()
@@ -1143,8 +1424,8 @@ function initializeMap() {
     maxZoom: 14
   })
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     bounds: maxBounds,
     noWrap: true
   }).addTo(map)
@@ -1190,9 +1471,6 @@ watch(selectedDestinationId, refreshRoadRoute)
       <div ref="mapContainer" class="map-canvas"></div>
 
       <aside class="search-panel">
-        <button type="button" class="location-button" @click="focusCurrentLocation">
-          📍 Use My Current Location
-        </button>
 
         <label class="search-field">
           <span>A</span>
@@ -1210,6 +1488,8 @@ watch(selectedDestinationId, refreshRoadRoute)
             v-model="destinationQuery"
             type="text"
             placeholder="Destination"
+            @focus="showDestinationSuggestions = true"
+            @click="showDestinationSuggestions = true"
             @keydown.enter.prevent="searchRoute"
           />
         </label>
@@ -1222,7 +1502,7 @@ watch(selectedDestinationId, refreshRoadRoute)
           {{ locationWarning }}
         </p>
 
-        <div v-if="destinationQuery.trim() && filteredDestinations.length" class="destination-list">
+        <div v-if="showDestinationSuggestions && filteredDestinations.length" class="destination-list">
           <button
             v-for="location in filteredDestinations"
             :key="location.id"
@@ -1231,7 +1511,8 @@ watch(selectedDestinationId, refreshRoadRoute)
             :class="{ active: selectedDestinationId === location.id }"
             @click="chooseDestination(location)"
           >
-            {{ location.name }}
+            <span class="suggestion-icon">↻</span>
+            <span>{{ location.name }}</span>
           </button>
         </div>
 
@@ -1258,19 +1539,52 @@ watch(selectedDestinationId, refreshRoadRoute)
 
       <section v-if="destinationQuery.trim() && selectedDestination" class="bottom-route-card">
         <div class="navigation-summary">
-          <div>
-            <p class="navigation-mode" :style="{ color: activeRouteVisual.color }">🚲 {{ releaseRouteModes.find((mode) => mode.id === activeMode)?.label || 'Selected' }} Route</p>
-            <h2>{{ plannerSummary.time }}<template v-if="plannerSummary.distance"> · {{ plannerSummary.distance }}</template></h2>
-            <span>Safety score {{ plannerSummary.score }}/10 · {{ selectedDestination?.name }}</span>
+          <div class="route-main-info">
+            <p class="navigation-mode" :style="{ color: activeRouteVisual.color }">
+              🚲 {{ releaseRouteModes.find((mode) => mode.id === activeMode)?.label || 'Selected' }} Route
+            </p>
+            <h2>
+              {{ plannerSummary.time }}<template v-if="plannerSummary.distance"> · {{ plannerSummary.distance }}</template>
+            </h2>
+            <span>
+              Safety score {{ plannerSummary.score }}/10 · {{ selectedDestination?.name }}
+              <template v-if="selectedStops.length"> · {{ selectedStops.length }} stop{{ selectedStops.length === 1 ? '' : 's' }}</template>
+            </span>
           </div>
+
           <div class="bottom-actions">
+            <button
+              v-if="navigationStarted"
+              type="button"
+              class="back-button"
+              @click="stopNavigation"
+            >
+              Back
+            </button>
             <button type="button" class="detail-toggle" @click="showRouteDetails = !showRouteDetails">
               {{ showRouteDetails ? 'Hide' : 'Details' }}
             </button>
-            <button type="button" class="start-button" @click="focusDestination(selectedDestination.coords)">
-              Start
+            <button type="button" class="start-button" :class="{ started: navigationStarted }" @click="startNavigation">
+              {{ navigationStarted ? 'Started' : 'Start' }}
             </button>
           </div>
+        </div>
+
+        <p v-if="navigationStarted" class="navigation-feedback">
+          Navigation preview started. Follow the highlighted route on the map.
+        </p>
+
+        <div v-if="selectedStops.length" class="stop-list">
+          <div class="stop-list-content">
+            <strong>Stops:</strong>
+            <div class="stop-items">
+              <span v-for="stop in selectedStops" :key="getStopKey(stop)" class="stop-item">
+                {{ stop.name }}
+                <button type="button" aria-label="Remove stop" @click="removeRouteStop(stop)">×</button>
+              </span>
+            </div>
+          </div>
+          <button type="button" class="clear-stops-button" @click="clearRouteStops">Clear all</button>
         </div>
 
         <div v-show="showRouteDetails" class="bottom-detail-panel">
@@ -1403,6 +1717,11 @@ watch(selectedDestinationId, refreshRoadRoute)
   color: transparent;
   font-size: 0;
   box-shadow: 0 0 0 4px rgba(91, 148, 239, 0.24);
+}
+
+:deep(.release-map-marker.is-stop) {
+  background: #ff9f0a;
+  color: #ffffff;
 }
 
 :deep(.release-map-marker.is-popular) {
@@ -1570,24 +1889,54 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 .destination-list {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   margin-top: 8px;
+  overflow: hidden;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.08);
 }
 
 .destination-option {
-  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
   border: 0;
-  border-radius: 15px;
-  background: rgba(245, 245, 247, 0.9);
+  border-radius: 0;
+  background: transparent;
   color: #424245;
   text-align: left;
   cursor: pointer;
+  font-size: 0.92rem;
+}
+
+.destination-option:hover {
+  background: rgba(0, 113, 227, 0.08);
 }
 
 .destination-option.active {
   background: #0071e3;
   color: #ffffff;
   font-weight: 800;
+}
+
+.suggestion-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(60, 60, 67, 0.1);
+  color: #6e6e73;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.destination-option.active .suggestion-icon {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
 .toggle-list {
@@ -1764,22 +2113,28 @@ watch(selectedDestinationId, refreshRoadRoute)
 .bottom-route-card {
   right: 24px;
   bottom: 24px;
-  width: 450px;
-  padding: 16px;
+  width: 520px;
+  max-width: calc(100% - 48px);
+  padding: 18px;
 }
 
 .navigation-summary {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
   align-items: center;
   color: #6e6e73;
+}
+
+.route-main-info {
+  min-width: 0;
 }
 
 .navigation-summary h2 {
   margin: 4px 0;
   color: #1d1d1f;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
+  line-height: 1.1;
 }
 
 .navigation-summary span {
@@ -1794,8 +2149,75 @@ watch(selectedDestinationId, refreshRoadRoute)
 
 .bottom-actions {
   display: flex;
-  gap: 8px;
+  flex: 0 0 auto;
+  gap: 10px;
   align-items: center;
+}
+
+.stop-list {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 159, 10, 0.12);
+  color: #424245;
+  font-size: 0.84rem;
+}
+
+.stop-list-content {
+  display: grid;
+  gap: 8px;
+}
+
+.stop-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stop-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #1d1d1f;
+  font-weight: 800;
+}
+
+.stop-item button,
+.clear-stops-button,
+:deep(.add-stop-popup-button) {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.stop-item button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: #ff9f0a;
+  color: #ffffff;
+}
+
+.clear-stops-button {
+  padding: 8px 12px;
+  background: #ff9f0a;
+  color: #ffffff;
+}
+
+:deep(.add-stop-popup-button) {
+  margin-top: 8px;
+  padding: 7px 12px;
+  background: #0071e3;
+  color: #ffffff;
 }
 
 .navigation-summary button {
@@ -1806,16 +2228,67 @@ watch(selectedDestinationId, refreshRoadRoute)
   font-weight: 900;
 }
 
+.back-button,
 .detail-toggle {
   padding: 0 16px;
   background: rgba(0, 113, 227, 0.1);
   color: #0066cc;
 }
 
+.back-button {
+  background: rgba(60, 60, 67, 0.1);
+  color: #424245;
+}
+.navigation-feedback {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(52, 199, 89, 0.12);
+  color: #2f855f;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+:deep(.navigation-arrow-wrapper) {
+  background: transparent;
+  border: 0;
+}
+
+:deep(.navigation-arrow) {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: #34c759;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-shadow:
+    0 1px 0 #ffffff,
+    1px 0 0 #ffffff,
+    0 -1px 0 #ffffff,
+    -1px 0 0 #ffffff,
+    0 2px 4px rgba(15, 23, 42, 0.2);
+}
+
 .start-button {
   padding: 0 22px;
   background: #0071e3;
   color: #ffffff;
+}
+
+.start-button.started {
+  background: #34c759;
+}
+
+.navigation-feedback {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: rgba(52, 199, 89, 0.12);
+  color: #2f855f;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .bottom-detail-panel {
@@ -1985,14 +2458,20 @@ watch(selectedDestinationId, refreshRoadRoute)
   }
 
   .navigation-summary {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .bottom-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     width: 100%;
+  }
+
+  .stop-list {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .navigation-summary h2 {
