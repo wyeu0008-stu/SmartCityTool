@@ -1,6 +1,6 @@
 <script setup>
 /* c8 ignore file */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const insightCards = [
   {
@@ -71,24 +71,19 @@ const cyclingTips = [
   }
 ]
 
-function getRandomTips() {
-  const shuffledTips = [...cyclingTips]
+const tipStartIndex = ref(new Date().getDate() % cyclingTips.length)
 
-  for (let i = shuffledTips.length - 1; i > 0; i -= 1) {
-    const randomIndex = Math.floor(Math.random() * (i + 1))
-    const currentTip = shuffledTips[i]
-
-    shuffledTips[i] = shuffledTips[randomIndex]
-    shuffledTips[randomIndex] = currentTip
-  }
-
-  return shuffledTips.slice(0, 3)
+function getRotatingTips() {
+  return [0, 1, 2].map((offset) => {
+    const tipIndex = (tipStartIndex.value + offset) % cyclingTips.length
+    return cyclingTips[tipIndex]
+  })
 }
 
-const randomTips = ref(getRandomTips())
+const randomTips = computed(() => getRotatingTips())
 
 function refreshTips() {
-  randomTips.value = getRandomTips()
+  tipStartIndex.value = (tipStartIndex.value + 3) % cyclingTips.length
 }
 </script>
 

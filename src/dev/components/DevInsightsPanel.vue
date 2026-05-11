@@ -53,9 +53,12 @@ const cyclingTips = [
 ]
 
 const randomTips = computed(() => {
-  return [...cyclingTips]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 3)
+  const dayOffset = new Date().getDate() % cyclingTips.length
+
+  return [0, 1, 2].map((offset) => {
+    const tipIndex = (dayOffset + offset) % cyclingTips.length
+    return cyclingTips[tipIndex]
+  })
 })
 </script>
 
