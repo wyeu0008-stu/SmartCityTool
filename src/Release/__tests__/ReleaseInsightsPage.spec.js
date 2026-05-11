@@ -14,7 +14,12 @@ describe('ReleaseInsightsPage', () => {
     expect(wrapper.text()).toContain('Weather Fit')
     expect(wrapper.text()).toContain('Traffic Risk')
     expect(wrapper.text()).toContain('Safer Window')
-    expect(wrapper.findAll('article')).toHaveLength(3)
+
+    expect(wrapper.findAll('.condition-card')).toHaveLength(3)
+    expect(wrapper.findAll('.tip-card')).toHaveLength(3)
+
+    expect(wrapper.text()).toContain('Positive Cycling Tips')
+    expect(wrapper.text()).toContain('Refresh Tips')
 
     vi.useRealTimers()
   })

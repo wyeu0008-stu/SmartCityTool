@@ -30,7 +30,7 @@ describe('AppHeader', () => {
     })
 
     expect(wrapper.exists()).toBe(true)
-    expect(wrapper.text()).toContain('SmartCycle Navigator')
+    expect(wrapper.text()).toContain('KnackCBD Ride')
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Map')
     expect(wrapper.text()).toContain('Safety Insights')
@@ -53,7 +53,7 @@ describe('AppHeader', () => {
     })
 
     const links = wrapper.findAll('a')
-    expect(wrapper.text()).toContain('Knackeredlad SmartCycle Navigator')
+    expect(wrapper.text()).toContain('KnackCBD Ride')
     expect(links[0].attributes('href')).toBe('/dev')
     expect(links[1].attributes('href')).toBe('/dev/map')
     expect(links[2].attributes('href')).toBe('/dev/insights')
