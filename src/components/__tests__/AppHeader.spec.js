@@ -12,7 +12,8 @@ function createTestRouter() {
       { path: '/insights', component: { template: '<div />' } },
       { path: '/dev', component: { template: '<div />' } },
       { path: '/dev/map', component: { template: '<div />' } },
-      { path: '/dev/insights', component: { template: '<div />' } }
+      { path: '/dev/insights', component: { template: '<div />' } },
+      { path: '/dev/more-info', component: { template: '<div />' } }
     ]
   })
 }
@@ -34,8 +35,10 @@ describe('AppHeader', () => {
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Map')
     expect(wrapper.text()).toContain('Safety Insights')
+    expect(wrapper.text()).not.toContain('More Info')
 
     const links = wrapper.findAll('a')
+    expect(links).toHaveLength(3)
     expect(links[0].attributes('href')).toBe('/')
     expect(links[1].attributes('href')).toBe('/map')
     expect(links[2].attributes('href')).toBe('/insights')
@@ -57,5 +60,6 @@ describe('AppHeader', () => {
     expect(links[0].attributes('href')).toBe('/dev')
     expect(links[1].attributes('href')).toBe('/dev/map')
     expect(links[2].attributes('href')).toBe('/dev/insights')
+    expect(links[3].attributes('href')).toBe('/dev/more-info')
   })
 })

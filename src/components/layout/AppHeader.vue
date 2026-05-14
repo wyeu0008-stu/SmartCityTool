@@ -9,6 +9,7 @@
       <router-link :to="navBase.home" active-class="active">Home</router-link>
       <router-link :to="navBase.map" active-class="active">Map</router-link>
       <router-link :to="navBase.insights" active-class="active">Safety Insights</router-link>
+      <router-link v-if="navBase.moreInfo" :to="navBase.moreInfo" active-class="active">More Info</router-link>
     </nav>
   </header>
 </template>
@@ -27,7 +28,8 @@ const navBase = computed(() => {
     return {
       home: '/dev',
       map: '/dev/map',
-      insights: '/dev/insights'
+      insights: '/dev/insights',
+      moreInfo: '/dev/more-info'
     }
   }
 

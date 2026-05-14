@@ -42,6 +42,15 @@ describe('router', () => {
     expect(router.currentRoute.value.fullPath).toBe('/dev')
   })
 
+  it('allows protected dev more info route when authorized', async () => {
+    hasPasswordAccess.mockImplementation((scope) => scope === 'dev')
+    const router = (await import('../index')).default
+
+    await router.push('/dev/more-info')
+
+    expect(router.currentRoute.value.fullPath).toBe('/dev/more-info')
+  })
+
   it('supports public alias route for planner', async () => {
     hasPasswordAccess.mockReturnValue(false)
     const router = (await import('../index')).default

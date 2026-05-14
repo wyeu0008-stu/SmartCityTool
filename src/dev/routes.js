@@ -1,6 +1,7 @@
 import DevHomePage from './pages/DevHomePage.vue'
 import DevMapPage from './pages/DevMapPage.vue'
 import DevInsightsPage from './pages/DevInsightsPage.vue'
+import DevMoreInfoPage from './pages/DevMoreInfoPage.vue'
 
 const protectedRoute = {
   requiresPassword: true,
@@ -24,6 +25,12 @@ export const devRoutes = [
     path: '/dev/insights',
     component: DevInsightsPage,
     alias: '/dev/safety-insights',
+    meta: protectedRoute
+  },
+  {
+    path: '/dev/more-info',
+    component: DevMoreInfoPage,
+    alias: '/dev/moreinfo',
     meta: protectedRoute
   },
   {
