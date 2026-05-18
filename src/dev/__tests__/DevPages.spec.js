@@ -54,7 +54,9 @@ describe('Dev pages', () => {
     expect(wrapper.find('[data-test="dev-more-info-panel"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Popular Origins')
     expect(wrapper.text()).toContain('Popular Destinations')
+    expect(wrapper.text()).toContain('Top 3 Routes')
     expect(wrapper.findAll('.ranking-panel')).toHaveLength(2)
+    expect(wrapper.findAll('.top-route-card')).toHaveLength(3)
   })
 
   it('renders dashboard filters without the removed filter chips', () => {
@@ -77,6 +79,13 @@ describe('Dev pages', () => {
 
     expect(destinationButton.classes()).toContain('active')
     expect(wrapper.text()).toContain('Selected Destination')
+    expect(wrapper.text()).toContain(destinationButton.text())
   })
 
+  it('shows all destinations in the KPI when the destination filter is all', () => {
+    const wrapper = mount(DevMoreInfoPage)
+
+    expect(wrapper.text()).toContain('All destinations')
+    expect(wrapper.text()).not.toContain('Southbank Promenade1,324 trips')
+  })
 })

@@ -60,6 +60,7 @@ const DEFAULT_ACTIVE_TOGGLES = ['safeRoutes', 'bikeLanes']
 const activeToggles = ref([...DEFAULT_ACTIVE_TOGGLES])
 const showLayerControls = ref(false)
 const showRouteDetails = ref(false)
+const showOriginSuggestions = ref(false)
 const showDestinationSuggestions = ref(false)
 const navigationStarted = ref(false)
 const routeVisuals = {
@@ -174,6 +175,15 @@ const destinationOptions = computed(() =>
   )
 )
 
+const popularOriginSuggestions = [
+  { id: 'origin-lakeside-trail', name: 'Lakeside Trail', coords: [-37.8112, 144.9678] },
+  { id: 'origin-docklands', name: 'Docklands', coords: [-37.8152, 144.9483] },
+  { id: 'origin-state-library', name: 'State Library Victoria', coords: [-37.8098, 144.9652] },
+  { id: 'origin-mcg', name: 'Melbourne Cricket Ground', coords: [-37.8199, 144.9834] },
+  { id: 'origin-carlton-gardens', name: 'Carlton Gardens', coords: [-37.8063, 144.9717] },
+  { id: 'origin-flagstaff-station', name: 'Flagstaff Station', coords: [-37.8119, 144.9557] }
+]
+
 const popularDestinationSuggestions = [
   { id: 'suggest-state-library', name: 'State Library Victoria', coords: [-37.8098, 144.9652] },
   { id: 'suggest-mcg', name: 'Melbourne Cricket Ground', coords: [-37.8199, 144.9834] },
@@ -199,6 +209,34 @@ const destinationSuggestionPool = computed(() => {
     seenNames.add(nameKey)
     return true
   })
+})
+
+const originSuggestionPool = computed(() => {
+  const mergedLocations = [currentLocation, ...popularOriginSuggestions, ...destinationOptions.value]
+  const seenNames = new Set()
+
+  return mergedLocations.filter((location) => {
+    const nameKey = location.name.toLowerCase()
+
+    if (seenNames.has(nameKey)) {
+      return false
+    }
+
+    seenNames.add(nameKey)
+    return true
+  })
+})
+
+const filteredOrigins = computed(() => {
+  const query = originQuery.value.trim().toLowerCase()
+
+  if (!query || query === 'current location') {
+    return originSuggestionPool.value.slice(0, 6)
+  }
+
+  return originSuggestionPool.value
+    .filter((location) => location.name.toLowerCase().includes(query))
+    .slice(0, 6)
 })
 
 const filteredDestinations = computed(() => {
@@ -358,6 +396,21 @@ function showLocationWarning(message) {
 
 function clearLocationWarning() {
   locationWarning.value = ''
+}
+
+async function chooseOrigin(location) {
+  if (!isWithinMelbourneCity(location.coords)) {
+    showLocationWarning('This start point is outside the supported Melbourne city routing area.')
+    return
+  }
+
+  clearLocationWarning()
+  originQuery.value = location.name
+  userCurrentCoords.value = location.coords
+  isUsingRealLocation.value = location.id === 'current'
+  navigationStarted.value = false
+  showOriginSuggestions.value = false
+  await refreshRoadRoute()
 }
 
 async function geocodeMelbournePlace(rawQuery) {
@@ -1509,6 +1562,8 @@ watch(selectedDestinationId, refreshRoadRoute)
             v-model="originQuery"
             type="text"
             placeholder="Start point"
+            @focus="showOriginSuggestions = true"
+            @click="showOriginSuggestions = true"
             @keydown.enter.prevent="searchRoute"
           />
         </label>
@@ -1533,12 +1588,26 @@ watch(selectedDestinationId, refreshRoadRoute)
           {{ locationWarning }}
         </p>
 
-        <div v-if="showDestinationSuggestions && filteredDestinations.length" class="destination-list">
+        <div v-if="showOriginSuggestions && filteredOrigins.length" class="suggestion-list">
+          <button
+            v-for="location in filteredOrigins"
+            :key="location.id"
+            type="button"
+            class="suggestion-option"
+            :class="{ active: originQuery === location.name }"
+            @click="chooseOrigin(location)"
+          >
+            <span class="suggestion-icon">⌖</span>
+            <span>{{ location.name }}</span>
+          </button>
+        </div>
+
+        <div v-if="showDestinationSuggestions && filteredDestinations.length" class="suggestion-list destination-list">
           <button
             v-for="location in filteredDestinations"
             :key="location.id"
             type="button"
-            class="destination-option"
+            class="suggestion-option destination-option"
             :class="{ active: selectedDestinationId === location.id }"
             @click="chooseDestination(location)"
           >
@@ -1918,6 +1987,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   font-weight: 800;
 }
 
+.suggestion-list,
 .destination-list {
   display: grid;
   gap: 2px;
@@ -1928,6 +1998,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.08);
 }
 
+.suggestion-option,
 .destination-option {
   display: flex;
   align-items: center;
@@ -1942,10 +2013,12 @@ watch(selectedDestinationId, refreshRoadRoute)
   font-size: 0.92rem;
 }
 
+.suggestion-option:hover,
 .destination-option:hover {
   background: rgba(0, 113, 227, 0.08);
 }
 
+.suggestion-option.active,
 .destination-option.active {
   background: #0071e3;
   color: #ffffff;
@@ -1965,6 +2038,7 @@ watch(selectedDestinationId, refreshRoadRoute)
   font-weight: 900;
 }
 
+.suggestion-option.active .suggestion-icon,
 .destination-option.active .suggestion-icon {
   background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
