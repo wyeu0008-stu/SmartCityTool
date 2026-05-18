@@ -1,11 +1,21 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DevHomePage from '../pages/DevHomePage.vue'
 import DevMapPage from '../pages/DevMapPage.vue'
 import DevInsightsPage from '../pages/DevInsightsPage.vue'
 import DevMoreInfoPage from '../pages/DevMoreInfoPage.vue'
+import { fetchPopularitySummary } from '../../services/popularityService'
+
+vi.mock('../../services/popularityService', () => ({
+  fetchPopularitySummary: vi.fn(() => Promise.reject(new Error('Use demo data')))
+}))
 
 describe('Dev pages', () => {
+  beforeEach(() => {
+    fetchPopularitySummary.mockReset()
+    fetchPopularitySummary.mockRejectedValue(new Error('Use demo data'))
+  })
+
   it('renders dev home page wrapper', () => {
     const wrapper = mount(DevHomePage, {
       global: {
@@ -87,5 +97,61 @@ describe('Dev pages', () => {
 
     expect(wrapper.text()).toContain('All destinations')
     expect(wrapper.text()).not.toContain('Southbank Promenade1,324 trips')
+  })
+
+  it('renders database popularity data when available', async () => {
+    fetchPopularitySummary.mockResolvedValue({
+      startPoints: [
+        { display_name: 'Database Origin', search_count: 40 },
+        { display_name: '', name: 'Named Origin', search_count: 10 }
+      ],
+      endPoints: [
+        { display_name: 'Database Destination', search_count: 30 }
+      ],
+      routes: [
+        {
+          origin_display_name: 'Database Origin',
+          destination_display_name: 'Database Destination',
+          search_count: 12
+        }
+      ]
+    })
+
+    const wrapper = mount(DevMoreInfoPage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(fetchPopularitySummary).toHaveBeenCalledWith(5)
+    expect(wrapper.text()).toContain('Database data')
+    expect(wrapper.text()).toContain('Database Origin')
+    expect(wrapper.text()).toContain('Named Origin')
+    expect(wrapper.text()).toContain('Database Destination')
+  })
+
+  it('keeps demo data when popularity API returns empty data', async () => {
+    fetchPopularitySummary.mockResolvedValue({
+      startPoints: [],
+      endPoints: [],
+      routes: []
+    })
+
+    const wrapper = mount(DevMoreInfoPage)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(wrapper.text()).toContain('Demo data')
+    expect(wrapper.text()).toContain('Flinders Street Station')
+    expect(wrapper.text()).toContain('Southbank Promenade')
+  })
+
+  it('updates dashboard when parking type filter changes', async () => {
+    const wrapper = mount(DevMoreInfoPage)
+    const parkingSelect = wrapper.findAll('.dashboard-filter-form select')[2]
+
+    await parkingSelect.setValue('rack')
+
+    expect(wrapper.text()).toContain('rack')
+    expect(wrapper.text()).toContain('41')
+    expect(wrapper.text()).toContain('1.4%')
   })
 })

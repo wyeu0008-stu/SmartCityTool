@@ -39,4 +39,22 @@ describe('recordRouteSearch', () => {
     expect(summary.endPoints).toHaveLength(1)
     expect(summary.routes).toHaveLength(1)
   })
+
+  it('uses default empty arrays when popularity payload keys are missing', async () => {
+    apiRequest
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+
+    const summary = await fetchPopularitySummary()
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/start-points?limit=5')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/end-points?limit=5')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/routes?limit=5')
+    expect(summary).toEqual({
+      startPoints: [],
+      endPoints: [],
+      routes: []
+    })
+  })
 })
