@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../apiClient'
 import { fetchPopularitySummary, recordRouteSearch } from '../popularityService'
 
@@ -7,6 +7,15 @@ vi.mock('../apiClient', () => ({
 }))
 
 describe('recordRouteSearch', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_USE_POPULARITY_API', 'true')
+    apiRequest.mockReset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('posts origin and destination to the popularity endpoint', async () => {
     apiRequest.mockResolvedValue({ record: { origin: 'Current Location', destination: 'Docklands' } })
 
@@ -22,6 +31,21 @@ describe('recordRouteSearch', () => {
         destination: { text: 'Docklands', lat: -37.8152, lng: 144.9483 }
       })
     })
+  })
+
+  it('skips recording when popularity API is disabled', async () => {
+    vi.stubEnv('VITE_USE_POPULARITY_API', 'false')
+
+    const result = await recordRouteSearch({
+      origin: { text: 'Current Location' },
+      destination: { text: 'Docklands' }
+    })
+
+    expect(result).toEqual({
+      skipped: true,
+      reason: 'Popularity API disabled'
+    })
+    expect(apiRequest).not.toHaveBeenCalled()
   })
 
   it('fetches popular origins, destinations, and routes together', async () => {
@@ -56,5 +80,18 @@ describe('recordRouteSearch', () => {
       endPoints: [],
       routes: []
     })
+  })
+
+  it('returns empty summary without API calls when popularity API is disabled', async () => {
+    vi.stubEnv('VITE_USE_POPULARITY_API', 'false')
+
+    const summary = await fetchPopularitySummary()
+
+    expect(summary).toEqual({
+      startPoints: [],
+      endPoints: [],
+      routes: []
+    })
+    expect(apiRequest).not.toHaveBeenCalled()
   })
 })

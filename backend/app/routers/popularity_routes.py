@@ -59,7 +59,18 @@ def get_popular_start_points(
     db: Session = Depends(get_db),
 ):
     service = PopularityService(db)
-    return {"start_points": service.get_popular_start_points(limit)}
+    try:
+        return {"start_points": service.get_popular_start_points(limit)}
+    except SQLAlchemyError as exc:
+        db.rollback()
+        return {
+            "start_points": [],
+            "source": "fallback",
+            "warnings": [
+                "Popularity start point data is unavailable; using frontend demo data.",
+                exc.__class__.__name__,
+            ],
+        }
 
 
 @router.get("/end-points")
@@ -68,7 +79,18 @@ def get_popular_end_points(
     db: Session = Depends(get_db),
 ):
     service = PopularityService(db)
-    return {"end_points": service.get_popular_end_points(limit)}
+    try:
+        return {"end_points": service.get_popular_end_points(limit)}
+    except SQLAlchemyError as exc:
+        db.rollback()
+        return {
+            "end_points": [],
+            "source": "fallback",
+            "warnings": [
+                "Popularity destination data is unavailable; using frontend demo data.",
+                exc.__class__.__name__,
+            ],
+        }
 
 
 @router.get("/routes")
@@ -77,4 +99,15 @@ def get_popular_routes(
     db: Session = Depends(get_db),
 ):
     service = PopularityService(db)
-    return {"routes": service.get_popular_routes(limit)}
+    try:
+        return {"routes": service.get_popular_routes(limit)}
+    except SQLAlchemyError as exc:
+        db.rollback()
+        return {
+            "routes": [],
+            "source": "fallback",
+            "warnings": [
+                "Popularity route data is unavailable; using frontend demo data.",
+                exc.__class__.__name__,
+            ],
+        }
