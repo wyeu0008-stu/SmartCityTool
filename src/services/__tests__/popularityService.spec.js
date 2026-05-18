@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { apiRequest } from '../apiClient'
-import { recordRouteSearch } from '../popularityService'
+import { fetchPopularitySummary, recordRouteSearch } from '../popularityService'
 
 vi.mock('../apiClient', () => ({
   apiRequest: vi.fn()
@@ -21,6 +21,40 @@ describe('recordRouteSearch', () => {
         origin: { text: 'Current Location', lat: -37.8136, lng: 144.9631 },
         destination: { text: 'Docklands', lat: -37.8152, lng: 144.9483 }
       })
+    })
+  })
+
+  it('fetches popular origins, destinations, and routes together', async () => {
+    apiRequest
+      .mockResolvedValueOnce({ start_points: [{ display_name: 'Origin A' }] })
+      .mockResolvedValueOnce({ end_points: [{ display_name: 'Destination B' }] })
+      .mockResolvedValueOnce({ routes: [{ origin_display_name: 'Origin A', destination_display_name: 'Destination B' }] })
+
+    const summary = await fetchPopularitySummary(3)
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/start-points?limit=3')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/end-points?limit=3')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/routes?limit=3')
+    expect(summary.startPoints).toHaveLength(1)
+    expect(summary.endPoints).toHaveLength(1)
+    expect(summary.routes).toHaveLength(1)
+  })
+
+  it('uses default empty arrays when popularity payload keys are missing', async () => {
+    apiRequest
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+
+    const summary = await fetchPopularitySummary()
+
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/start-points?limit=5')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/end-points?limit=5')
+    expect(apiRequest).toHaveBeenCalledWith('/api/popularity/routes?limit=5')
+    expect(summary).toEqual({
+      startPoints: [],
+      endPoints: [],
+      routes: []
     })
   })
 })

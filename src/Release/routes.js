@@ -1,6 +1,7 @@
 import ReleaseHomePage from './pages/ReleaseHomePage.vue'
 import ReleaseMapPage from './pages/ReleaseMapPage.vue'
 import ReleaseInsightsPage from './pages/ReleaseInsightsPage.vue'
+import ReleaseMoreInfoPage from './pages/ReleaseMoreInfoPage.vue'
 
 export const releaseRoutes = [
   {
@@ -15,5 +16,10 @@ export const releaseRoutes = [
   {
     path: '/insights',
     component: ReleaseInsightsPage
+  },
+  {
+    path: '/more-info',
+    component: ReleaseMoreInfoPage,
+    alias: '/moreinfo'
   }
 ]

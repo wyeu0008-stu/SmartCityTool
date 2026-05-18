@@ -10,6 +10,7 @@ function createTestRouter() {
       { path: '/', component: { template: '<div />' } },
       { path: '/map', component: { template: '<div />' } },
       { path: '/insights', component: { template: '<div />' } },
+      { path: '/more-info', component: { template: '<div />' } },
       { path: '/dev', component: { template: '<div />' } },
       { path: '/dev/map', component: { template: '<div />' } },
       { path: '/dev/insights', component: { template: '<div />' } },
@@ -35,13 +36,14 @@ describe('AppHeader', () => {
     expect(wrapper.text()).toContain('Home')
     expect(wrapper.text()).toContain('Map')
     expect(wrapper.text()).toContain('Safety Insights')
-    expect(wrapper.text()).not.toContain('More Info')
+    expect(wrapper.text()).toContain('More Info')
 
     const links = wrapper.findAll('a')
-    expect(links).toHaveLength(3)
+    expect(links).toHaveLength(4)
     expect(links[0].attributes('href')).toBe('/')
     expect(links[1].attributes('href')).toBe('/map')
     expect(links[2].attributes('href')).toBe('/insights')
+    expect(links[3].attributes('href')).toBe('/more-info')
   })
 
   it('switches navigation base inside dev routes', async () => {

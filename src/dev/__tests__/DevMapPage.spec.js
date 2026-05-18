@@ -140,6 +140,25 @@ describe('DevMapPage', () => {
     expect(wrapper.text()).toContain('Protected-lane preference')
   })
 
+  it('shows start point suggestions and selects an origin', async () => {
+    const wrapper = mount(DevMapPage)
+    await flushPromises()
+
+    const originInput = wrapper.find('input[placeholder="Start point"]')
+    await originInput.trigger('focus')
+    await originInput.setValue('Docklands')
+
+    const docklandsButton = wrapper.findAll('.suggestion-list .suggestion-option').find((button) =>
+      button.text().includes('Docklands')
+    )
+
+    expect(docklandsButton).toBeTruthy()
+
+    await docklandsButton.trigger('click')
+
+    expect(originInput.element.value).toBe('Docklands')
+  })
+
   it('uses backend model route data and sends route warnings only to console', async () => {
     routeQuery = {
       destination: 'Docklands',

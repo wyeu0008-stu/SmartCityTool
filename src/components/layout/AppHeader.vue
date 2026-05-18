@@ -39,7 +39,8 @@ const navBase = computed(() => {
   return {
     home: '/',
     map: '/map',
-    insights: '/insights'
+    insights: '/insights',
+    moreInfo: '/more-info'
   }
 })
 </script>

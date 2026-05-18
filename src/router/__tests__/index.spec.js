@@ -22,6 +22,15 @@ describe('router', () => {
     expect(router.currentRoute.value.fullPath).toBe('/map')
   })
 
+  it('allows access to public release more info route', async () => {
+    hasPasswordAccess.mockReturnValue(false)
+    const router = (await import('../index')).default
+
+    await router.push('/more-info')
+
+    expect(router.currentRoute.value.fullPath).toBe('/more-info')
+  })
+
   it('redirects protected oldver routes to password gate when unauthorized', async () => {
     hasPasswordAccess.mockReturnValue(false)
     const router = (await import('../index')).default

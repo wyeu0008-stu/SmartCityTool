@@ -10,6 +10,7 @@ function createTestRouter() {
       { path: '/', component: { template: '<div />' } },
       { path: '/map', component: { template: '<div />' } },
       { path: '/insights', component: { template: '<div />' } },
+      { path: '/more-info', component: { template: '<div />' } },
       { path: '/dev', component: { template: '<div />' } },
       { path: '/dev/map', component: { template: '<div />' } },
       { path: '/dev/insights', component: { template: '<div />' } },
@@ -34,8 +35,8 @@ describe('AppFooter', () => {
 
     expect(wrapper.text()).toContain('Website Map')
     expect(wrapper.text()).toContain('Explore the function pages')
-    expect(links.map((link) => link.text())).toEqual(['Home', 'Map', 'Safety Insights'])
-    expect(links.map((link) => link.attributes('href'))).toEqual(['/', '/map', '/insights'])
+    expect(links.map((link) => link.text())).toEqual(['Home', 'Map', 'Safety Insights', 'More Info'])
+    expect(links.map((link) => link.attributes('href'))).toEqual(['/', '/map', '/insights', '/more-info'])
   })
 
   it('renders dev website map links on dev pages', async () => {

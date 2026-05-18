@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { fetchPopularitySummary } from '../../services/popularityService'
 
-const originRankings = [
+const defaultOriginRankings = [
   { rank: 1, place: 'Flinders Street Station', trips: 1280, trend: '+18%', score: 98 },
   { rank: 2, place: 'State Library Victoria', trips: 1148, trend: '+12%', score: 94 },
   { rank: 3, place: 'Queen Victoria Market', trips: 1036, trend: '+9%', score: 90 },
@@ -9,12 +10,18 @@ const originRankings = [
   { rank: 5, place: 'Carlton Gardens', trips: 812, trend: '+5%', score: 82 }
 ]
 
-const destinationRankings = [
+const defaultDestinationRankings = [
   { rank: 1, place: 'Southbank Promenade', trips: 1324, trend: '+21%', score: 99 },
   { rank: 2, place: 'Melbourne Cricket Ground', trips: 1192, trend: '+14%', score: 95 },
   { rank: 3, place: 'Royal Botanic Gardens', trips: 1076, trend: '+10%', score: 91 },
   { rank: 4, place: 'Harbour Esplanade', trips: 968, trend: '+8%', score: 87 },
   { rank: 5, place: 'Lygon Street Carlton', trips: 846, trend: '+4%', score: 83 }
+]
+
+const defaultPopularRoutes = [
+  { rank: 1, origin: 'Flinders Street Station', destination: 'Southbank Promenade', trips: 742, trend: '+16%', score: 100 },
+  { rank: 2, origin: 'State Library Victoria', destination: 'Melbourne Cricket Ground', trips: 618, trend: '+11%', score: 83 },
+  { rank: 3, origin: 'Queen Victoria Market', destination: 'Royal Botanic Gardens', trips: 534, trend: '+8%', score: 72 }
 ]
 
 const infrastructureData = [
@@ -39,11 +46,33 @@ const parkingData = [
 const areaFilter = ref('Melbourne CBD')
 const destinationFilter = ref('All destinations')
 const parkingFilter = ref('All parking types')
-const selectedDestination = ref(destinationRankings[0].place)
+const originRankings = ref([...defaultOriginRankings])
+const destinationRankings = ref([...defaultDestinationRankings])
+const popularRoutes = ref([...defaultPopularRoutes])
+const popularitySource = ref('Demo data')
+const selectedDestination = ref(defaultDestinationRankings[0].place)
 const chartsVisible = ref(false)
 
 const selectedDestinationRecord = computed(() => {
-  return destinationRankings.find((item) => item.place === selectedDestination.value) || destinationRankings[0]
+  return destinationRankings.value.find((item) => item.place === selectedDestination.value) || destinationRankings.value[0]
+})
+
+const totalDestinationTrips = computed(() =>
+  destinationRankings.value.reduce((sum, item) => sum + item.trips, 0)
+)
+
+const selectedDestinationMetric = computed(() => {
+  if (destinationFilter.value === 'All destinations') {
+    return {
+      value: 'All destinations',
+      note: `${totalDestinationTrips.value.toLocaleString()} trips`
+    }
+  }
+
+  return {
+    value: selectedDestinationRecord.value.place,
+    note: `${selectedDestinationRecord.value.trips.toLocaleString()} trips`
+  }
 })
 
 const filteredParkingData = computed(() => {
@@ -57,7 +86,7 @@ const filteredParkingData = computed(() => {
 const dominantParking = computed(() => filteredParkingData.value[0] || parkingData[0])
 
 const dashboardMetrics = computed(() => [
-  { label: 'Selected Destination', value: selectedDestinationRecord.value.place, note: `${selectedDestinationRecord.value.trips.toLocaleString()} trips` },
+  { label: 'Selected Destination', value: selectedDestinationMetric.value.value, note: selectedDestinationMetric.value.note },
   { label: 'Total Parking Facilities', value: filteredParkingData.value.reduce((sum, item) => sum + item.count, 0).toLocaleString(), note: `${areaFilter.value} records` },
   { label: 'Largest Infra Type', value: 'Basic painted lane', note: '262.36 km' },
   { label: 'Dominant Parking Type', value: dominantParking.value.type, note: `${dominantParking.value.percentage}%` }
@@ -84,12 +113,76 @@ function selectDestination(place) {
 }
 
 function updateDestinationFilter() {
-  selectedDestination.value = destinationFilter.value === 'All destinations'
-    ? destinationRankings[0].place
-    : destinationFilter.value
+  if (destinationFilter.value !== 'All destinations') {
+    selectedDestination.value = destinationFilter.value
+  }
+}
+
+function scoreFromTrips(trips, maxTrips) {
+  return Math.max(8, Math.round((Number(trips || 0) / Math.max(1, Number(maxTrips || 1))) * 100))
+}
+
+function trendFromRank(rank) {
+  return rank <= 3 ? `+${Math.max(6, 18 - rank * 3)}%` : '+4%'
+}
+
+function mapPointRows(rows, fallbackRows) {
+  if (!rows.length) {
+    return fallbackRows
+  }
+
+  const maxTrips = Math.max(...rows.map((row) => Number(row.search_count || 0)), 1)
+
+  return rows.slice(0, 5).map((row, index) => ({
+    rank: index + 1,
+    place: row.display_name || row.name || 'Unknown location',
+    trips: Number(row.search_count || 0),
+    trend: trendFromRank(index + 1),
+    score: scoreFromTrips(row.search_count, maxTrips)
+  }))
+}
+
+function mapRouteRows(rows) {
+  if (!rows.length) {
+    return defaultPopularRoutes
+  }
+
+  const maxTrips = Math.max(...rows.map((row) => Number(row.search_count || 0)), 1)
+
+  return rows.slice(0, 3).map((row, index) => ({
+    rank: index + 1,
+    origin: row.origin_display_name || 'Unknown origin',
+    destination: row.destination_display_name || 'Unknown destination',
+    trips: Number(row.search_count || 0),
+    trend: trendFromRank(index + 1),
+    score: scoreFromTrips(row.search_count, maxTrips)
+  }))
+}
+
+async function loadPopularityData() {
+  try {
+    const summary = await fetchPopularitySummary(5)
+    const hasDatabaseRows = summary.startPoints.length || summary.endPoints.length || summary.routes.length
+
+    originRankings.value = mapPointRows(summary.startPoints, defaultOriginRankings)
+    destinationRankings.value = mapPointRows(summary.endPoints, defaultDestinationRankings)
+    popularRoutes.value = mapRouteRows(summary.routes)
+    popularitySource.value = hasDatabaseRows ? 'Database data' : 'Demo data'
+
+    if (!destinationRankings.value.some((item) => item.place === selectedDestination.value)) {
+      selectedDestination.value = destinationRankings.value[0]?.place || defaultDestinationRankings[0].place
+    }
+  } catch {
+    originRankings.value = [...defaultOriginRankings]
+    destinationRankings.value = [...defaultDestinationRankings]
+    popularRoutes.value = [...defaultPopularRoutes]
+    popularitySource.value = 'Demo data'
+  }
 }
 
 onMounted(() => {
+  loadPopularityData()
+
   window.requestAnimationFrame(() => {
     chartsVisible.value = true
   })
@@ -188,6 +281,39 @@ onMounted(() => {
           </table>
         </section>
       </div>
+
+      <section class="top-routes-panel" aria-labelledby="top-routes-title">
+        <div class="top-routes-heading">
+          <div>
+            <p class="eyebrow">Top 3 Routes</p>
+            <h2 id="top-routes-title">Popular routes between origins and destinations</h2>
+          </div>
+          <span>{{ popularitySource }}</span>
+        </div>
+
+        <div class="top-route-grid">
+          <article
+            v-for="route in popularRoutes"
+            :key="`${route.origin}-${route.destination}`"
+            class="top-route-card has-tooltip"
+            :data-tooltip="`${route.origin} to ${route.destination}: ${route.trips.toLocaleString()} searches`"
+          >
+            <span class="route-rank">{{ route.rank }}</span>
+            <div class="route-copy">
+              <strong>{{ route.origin }}</strong>
+              <small>to</small>
+              <strong>{{ route.destination }}</strong>
+            </div>
+            <div class="route-count">
+              <strong>{{ route.trips.toLocaleString() }}</strong>
+              <small>{{ route.trend }}</small>
+            </div>
+            <span class="route-score-track">
+              <span :style="{ width: `${route.score}%` }"></span>
+            </span>
+          </article>
+        </div>
+      </section>
 
       <section class="dashboard-space" aria-label="Cycling data dashboard preview">
         <div class="dashboard-heading">
@@ -539,12 +665,140 @@ td strong {
   background: linear-gradient(90deg, #0071e3, #34c759);
 }
 
+.top-routes-panel {
+  position: relative;
+  z-index: 1;
+  margin-top: 22px;
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(22px);
+}
+
+.top-routes-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.top-routes-heading h2 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1.12;
+}
+
+.top-routes-heading > span {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(52, 199, 89, 0.12);
+  color: #18863a;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.top-route-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.top-route-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 132px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(245, 245, 247, 0.86);
+  box-shadow: inset 0 0 0 1px rgba(60, 60, 67, 0.06);
+}
+
+.route-rank {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #0071e3;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.top-route-card:nth-child(1) .route-rank {
+  background: #ff9f0a;
+  color: #4a2500;
+}
+
+.top-route-card:nth-child(2) .route-rank {
+  background: #c7c7cc;
+  color: #26314a;
+}
+
+.top-route-card:nth-child(3) .route-rank {
+  background: #b87333;
+}
+
+.route-copy {
+  min-width: 0;
+}
+
+.route-copy strong {
+  display: block;
+  color: #1d1d1f;
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.route-copy small,
+.route-count small {
+  display: block;
+  color: #6e6e73;
+  font-weight: 800;
+}
+
+.route-count {
+  text-align: right;
+}
+
+.route-count strong {
+  color: #1d1d1f;
+  font-size: 1.3rem;
+}
+
+.route-count small {
+  color: #34c759;
+}
+
+.route-score-track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.12);
+}
+
+.route-score-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0071e3, #34c759);
+}
+
 .dashboard-space {
   position: relative;
   z-index: 1;
   display: block;
   margin-top: 28px;
-  padding: 24px;
+  padding: 28px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.76);
@@ -628,29 +882,29 @@ td strong {
 
 .chart-card {
   border: 1px solid rgba(229, 229, 234, 0.92);
-  border-radius: 8px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
 }
 
 .chart-card h3 {
-  font-size: clamp(1.15rem, 2vw, 1.75rem);
-  line-height: 1.12;
+  font-size: clamp(1.08rem, 1.8vw, 1.45rem);
+  line-height: 1.18;
 }
 
 .segment-chart {
-  padding: 24px 24px 28px;
+  padding: 26px 28px 30px;
 }
 
 .horizontal-chart {
   display: grid;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 14px;
+  margin-top: 22px;
 }
 
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
 }
@@ -672,9 +926,9 @@ td strong {
 
 .bar-fill {
   display: block;
-  height: 26px;
+  height: 28px;
   min-width: 8px;
-  border-radius: 0;
+  border-radius: 7px;
   transform: scaleX(0);
   transform-origin: left;
 }
@@ -726,35 +980,34 @@ td strong {
 
 .dashboard-lower {
   display: grid;
-  grid-template-columns: 1fr 0.96fr 1.04fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   margin-top: 18px;
 }
 
 .parking-summary,
-.parking-bars,
-.kpi-grid {
+.parking-bars {
   min-height: 360px;
 }
 
 .parking-summary,
 .parking-bars {
-  padding: 22px;
+  padding: 24px;
 }
 
 .parking-summary-layout {
   display: grid;
-  grid-template-columns: minmax(130px, 190px) minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: minmax(170px, 230px) minmax(150px, 1fr);
+  gap: 24px;
   align-items: center;
-  margin-top: 28px;
+  margin-top: 24px;
 }
 
 .donut-chart {
   position: relative;
   display: grid;
   place-items: center;
-  width: min(100%, 190px);
+  width: min(100%, 230px);
   aspect-ratio: 1;
   border-radius: 50%;
   opacity: 0;
@@ -783,7 +1036,7 @@ td strong {
 
 .parking-legend {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -791,7 +1044,7 @@ td strong {
 
 .parking-legend li {
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(90px, 1fr) auto;
   align-items: center;
   gap: 8px;
   color: #25324a;
@@ -805,9 +1058,8 @@ td strong {
 }
 
 .parking-legend li strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .parking-legend li small {
@@ -819,7 +1071,7 @@ td strong {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
-  gap: 12px;
+  gap: 14px;
   min-height: 270px;
   margin-top: 22px;
   padding-top: 24px;
@@ -850,7 +1102,7 @@ td strong {
 
 .parking-bar span {
   display: block;
-  width: min(100%, 46px);
+  width: min(100%, 52px);
   min-height: 8px;
   margin: 6px auto 8px;
   border-radius: 4px 4px 0 0;
@@ -868,20 +1120,22 @@ td strong {
 }
 
 .parking-bar small {
-  min-height: 38px;
+  min-height: 44px;
   overflow: hidden;
   color: #424245;
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1.2;
-  text-overflow: ellipsis;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid rgba(221, 226, 235, 0.95);
-  border-radius: 8px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
   overflow: hidden;
 }
@@ -891,39 +1145,45 @@ td strong {
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  min-height: 180px;
-  padding: 22px;
+  min-height: 148px;
+  padding: 22px 24px;
   border-right: 1px solid rgba(221, 226, 235, 0.95);
   border-bottom: 1px solid rgba(221, 226, 235, 0.95);
 }
 
 .kpi-grid article:nth-child(2n) {
-  border-right: 0;
+  border-right: 1px solid rgba(221, 226, 235, 0.95);
 }
 
-.kpi-grid article:nth-last-child(-n + 2) {
+.kpi-grid article {
   border-bottom: 0;
+}
+
+.kpi-grid article:last-child {
+  border-right: 0;
 }
 
 .kpi-grid span {
   color: #3f4a60;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 900;
 }
 
 .kpi-grid strong {
   display: block;
   margin-top: 8px;
-  overflow-wrap: anywhere;
+  max-width: 100%;
   color: #0d1b34;
-  font-size: clamp(1.65rem, 3vw, 2.65rem);
-  line-height: 0.95;
+  font-size: clamp(1.55rem, 2.2vw, 2.25rem);
+  line-height: 1.06;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .kpi-grid small {
   margin-top: 8px;
   color: #0071e3;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 800;
 }
 
@@ -1000,12 +1260,59 @@ td strong {
     grid-template-columns: 1fr;
   }
 
+  .top-route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .parking-summary-layout {
+    grid-template-columns: minmax(170px, 230px) minmax(150px, 1fr);
+  }
+
   .parking-summary,
   .parking-bars,
   .kpi-grid {
     min-height: 0;
   }
 
+}
+
+@media (max-width: 1180px) {
+  .parking-summary-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .donut-chart {
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kpi-grid article,
+  .kpi-grid article:nth-child(2n),
+  .kpi-grid article:nth-last-child(-n + 2) {
+    border-right: 1px solid rgba(221, 226, 235, 0.95);
+    border-bottom: 1px solid rgba(221, 226, 235, 0.95);
+  }
+
+  .kpi-grid article:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .kpi-grid article:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .kpi-grid strong {
+    font-size: clamp(1.35rem, 6vw, 2rem);
+  }
+
+  .parking-summary-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1020,6 +1327,7 @@ td strong {
   }
 
   .ranking-panel,
+  .top-routes-panel,
   .dashboard-space {
     padding: 14px;
   }
@@ -1040,6 +1348,23 @@ td strong {
   .segment-chart,
   .parking-summary,
   .parking-bars {
+    padding: 16px;
+  }
+
+  .top-routes-heading {
+    flex-direction: column;
+  }
+
+  .top-route-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .route-count {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .dashboard-space {
     padding: 16px;
   }
 
