@@ -1,4 +1,6 @@
 <script setup>
+import { computed, onMounted, ref } from 'vue'
+
 const originRankings = [
   { rank: 1, place: 'Flinders Street Station', trips: 1280, trend: '+18%', score: 98 },
   { rank: 2, place: 'State Library Victoria', trips: 1148, trend: '+12%', score: 94 },
@@ -34,20 +36,64 @@ const parkingData = [
   { type: 'shed', count: 24, percentage: 0.8, color: '#12aee8', width: 1 }
 ]
 
-const dashboardMetrics = [
-  { label: 'Total Segment Length', value: '849.46 km', note: 'CBD cycling segments' },
-  { label: 'Total Parking Facilities', value: '2,973', note: 'bike parking records' },
-  { label: 'Largest Infra Type', value: 'Basic painted lane', note: '262.36 km' },
-  { label: 'Dominant Parking Type', value: 'stands', note: '77.1%' }
-]
+const areaFilter = ref('Melbourne CBD')
+const destinationFilter = ref('All destinations')
+const parkingFilter = ref('All parking types')
+const selectedDestination = ref(destinationRankings[0].place)
+const chartsVisible = ref(false)
 
-const parkingPie = `conic-gradient(${parkingData
-  .map((item, index) => {
-    const start = parkingData.slice(0, index).reduce((total, slice) => total + slice.percentage, 0)
-    const end = start + item.percentage
-    return `${item.color} ${start}% ${end}%`
+const selectedDestinationRecord = computed(() => {
+  return destinationRankings.find((item) => item.place === selectedDestination.value) || destinationRankings[0]
+})
+
+const filteredParkingData = computed(() => {
+  if (parkingFilter.value === 'All parking types') {
+    return parkingData
+  }
+
+  return parkingData.filter((item) => item.type === parkingFilter.value)
+})
+
+const dominantParking = computed(() => filteredParkingData.value[0] || parkingData[0])
+
+const dashboardMetrics = computed(() => [
+  { label: 'Selected Destination', value: selectedDestinationRecord.value.place, note: `${selectedDestinationRecord.value.trips.toLocaleString()} trips` },
+  { label: 'Total Parking Facilities', value: filteredParkingData.value.reduce((sum, item) => sum + item.count, 0).toLocaleString(), note: `${areaFilter.value} records` },
+  { label: 'Largest Infra Type', value: 'Basic painted lane', note: '262.36 km' },
+  { label: 'Dominant Parking Type', value: dominantParking.value.type, note: `${dominantParking.value.percentage}%` }
+])
+
+const parkingPie = computed(() => {
+  const total = filteredParkingData.value.reduce((sum, item) => sum + item.count, 0)
+
+  return `conic-gradient(${filteredParkingData.value
+    .map((item, index) => {
+      const start = filteredParkingData.value
+        .slice(0, index)
+        .reduce((sum, slice) => sum + (slice.count / total) * 100, 0)
+      const end = start + (item.count / total) * 100
+
+      return `${item.color} ${start}% ${end}%`
+    })
+    .join(', ')})`
+})
+
+function selectDestination(place) {
+  selectedDestination.value = place
+  destinationFilter.value = place
+}
+
+function updateDestinationFilter() {
+  selectedDestination.value = destinationFilter.value === 'All destinations'
+    ? destinationRankings[0].place
+    : destinationFilter.value
+}
+
+onMounted(() => {
+  window.requestAnimationFrame(() => {
+    chartsVisible.value = true
   })
-  .join(', ')})`
+})
 </script>
 
 <template>
@@ -86,7 +132,15 @@ const parkingPie = `conic-gradient(${parkingData
                   <span class="rank-medal" :class="`rank-${item.rank}`">{{ item.rank }}</span>
                 </td>
                 <td>
-                  <strong>{{ item.place }}</strong>
+                  <button
+                    type="button"
+                    class="destination-button has-tooltip"
+                    :class="{ active: selectedDestination === item.place }"
+                    :data-tooltip="`${item.place}: ${item.trips.toLocaleString()} trips, trend ${item.trend}`"
+                    @click="selectDestination(item.place)"
+                  >
+                    {{ item.place }}
+                  </button>
                   <span class="score-track">
                     <span :style="{ width: `${item.score}%` }"></span>
                   </span>
@@ -141,18 +195,39 @@ const parkingPie = `conic-gradient(${parkingData
             <p class="eyebrow">Cycling Data Dashboard</p>
             <h2>Melbourne CBD cycling infrastructure and bike parking overview</h2>
           </div>
-          <div class="dashboard-filters" aria-label="Dashboard filters">
-            <span>Melbourne CBD</span>
-          </div>
         </div>
 
-        <section class="chart-card segment-chart" aria-labelledby="segment-chart-title">
+        <form class="dashboard-filter-form" aria-label="Dashboard filters">
+          <label>
+            <span>Area</span>
+            <select v-model="areaFilter">
+              <option>Melbourne CBD</option>
+            </select>
+          </label>
+          <label>
+            <span>Destination</span>
+            <select v-model="destinationFilter" @change="updateDestinationFilter">
+              <option>All destinations</option>
+              <option v-for="item in destinationRankings" :key="item.place">{{ item.place }}</option>
+            </select>
+          </label>
+          <label>
+            <span>Parking type</span>
+            <select v-model="parkingFilter">
+              <option>All parking types</option>
+              <option v-for="item in parkingData" :key="item.type">{{ item.type }}</option>
+            </select>
+          </label>
+        </form>
+
+        <section class="chart-card segment-chart" :class="{ 'is-ready': chartsVisible }" aria-labelledby="segment-chart-title">
           <h3 id="segment-chart-title">Total Cycling Segment Length by Infrastructure Type (km)</h3>
           <div class="horizontal-chart">
             <div
               v-for="item in infrastructureData"
               :key="item.type"
-              class="bar-row"
+              class="bar-row has-tooltip"
+              :data-tooltip="`${item.type}: ${item.length} km in ${areaFilter}`"
             >
               <span class="bar-label">{{ item.type }}</span>
               <div class="bar-track">
@@ -170,11 +245,21 @@ const parkingPie = `conic-gradient(${parkingData
           <section class="chart-card parking-summary" aria-labelledby="parking-summary-title">
             <h3 id="parking-summary-title">CBD Bike Parking Facilities Summary</h3>
             <div class="parking-summary-layout">
-              <div class="donut-chart" :style="{ background: parkingPie }">
-                <span>77.1%</span>
+              <div
+                class="donut-chart has-tooltip"
+                :class="{ 'is-ready': chartsVisible }"
+                :style="{ background: parkingPie }"
+                :data-tooltip="`${dominantParking.type}: ${dominantParking.count.toLocaleString()} facilities, ${dominantParking.percentage}% share`"
+              >
+                <span>{{ dominantParking.percentage }}%</span>
               </div>
               <ul class="parking-legend">
-                <li v-for="item in parkingData" :key="item.type">
+                <li
+                  v-for="item in filteredParkingData"
+                  :key="item.type"
+                  class="has-tooltip"
+                  :data-tooltip="`${item.type}: ${item.count.toLocaleString()} facilities, ${item.percentage}% share`"
+                >
                   <span :style="{ background: item.color }"></span>
                   <strong>{{ item.type }}</strong>
                   <small>{{ item.percentage }}%</small>
@@ -183,16 +268,23 @@ const parkingPie = `conic-gradient(${parkingData
             </div>
           </section>
 
-          <section class="chart-card parking-bars" aria-labelledby="parking-bars-title">
+          <section class="chart-card parking-bars" :class="{ 'is-ready': chartsVisible }" aria-labelledby="parking-bars-title">
             <h3 id="parking-bars-title">Top Parking Types</h3>
             <div class="vertical-chart">
-              <div v-for="item in parkingData" :key="item.type" class="parking-bar">
+              <button
+                v-for="item in filteredParkingData"
+                :key="item.type"
+                type="button"
+                class="parking-bar has-tooltip"
+                :data-tooltip="`${item.type}: ${item.count.toLocaleString()} facilities, ${item.percentage}% of parking records`"
+                @click="parkingFilter = item.type"
+              >
                 <strong>{{ item.count }}</strong>
                 <span
                   :style="{ height: `${Math.max(item.width, 8)}%`, background: item.color }"
                 ></span>
                 <small>{{ item.type }}</small>
-              </div>
+              </button>
             </div>
           </section>
 
@@ -205,6 +297,7 @@ const parkingPie = `conic-gradient(${parkingData
           </section>
         </div>
       </section>
+
     </section>
   </main>
 </template>
@@ -386,6 +479,27 @@ td strong {
   white-space: nowrap;
 }
 
+.destination-button {
+  max-width: 220px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.destination-button:hover,
+.destination-button.active {
+  color: #0071e3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .rank-medal {
   width: 34px;
   height: 34px;
@@ -475,6 +589,43 @@ td strong {
   font-weight: 800;
 }
 
+.dashboard-filter-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-filter-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.dashboard-filter-form label span {
+  color: #6e6e73;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dashboard-filter-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 113, 227, 0.16);
+  border-radius: 14px;
+  background: rgba(245, 245, 247, 0.88);
+  color: #1d1d1f;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.dashboard-filter-form select:focus {
+  border-color: #0071e3;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
+}
+
 .chart-card {
   border: 1px solid rgba(229, 229, 234, 0.92);
   border-radius: 8px;
@@ -524,6 +675,12 @@ td strong {
   height: 26px;
   min-width: 8px;
   border-radius: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.segment-chart.is-ready .bar-fill {
+  animation: growHorizontalBar 900ms ease forwards;
 }
 
 .bar-track strong {
@@ -600,6 +757,12 @@ td strong {
   width: min(100%, 190px);
   aspect-ratio: 1;
   border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.88);
+}
+
+.donut-chart.is-ready {
+  animation: revealDonut 680ms ease forwards;
 }
 
 .donut-chart::after {
@@ -671,6 +834,11 @@ td strong {
   align-items: end;
   min-width: 0;
   height: 270px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
   text-align: center;
 }
 
@@ -686,6 +854,17 @@ td strong {
   min-height: 8px;
   margin: 6px auto 8px;
   border-radius: 4px 4px 0 0;
+  transform: scaleY(0);
+  transform-origin: bottom;
+}
+
+.parking-bars.is-ready .parking-bar span {
+  animation: growVerticalBar 820ms ease forwards;
+}
+
+.parking-bar:hover span {
+  filter: brightness(0.94);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
 }
 
 .parking-bar small {
@@ -748,6 +927,57 @@ td strong {
   font-weight: 800;
 }
 
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 40;
+  width: max-content;
+  max-width: min(320px, 82vw);
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(29, 29, 31, 0.92);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  white-space: normal;
+}
+
+.has-tooltip:hover::after,
+.has-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes growHorizontalBar {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes growVerticalBar {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes revealDonut {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (max-width: 940px) {
   .rankings-grid {
     grid-template-columns: 1fr;
@@ -762,6 +992,10 @@ td strong {
     justify-content: flex-start;
   }
 
+  .dashboard-filter-form {
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-lower {
     grid-template-columns: 1fr;
   }
@@ -771,6 +1005,7 @@ td strong {
   .kpi-grid {
     min-height: 0;
   }
+
 }
 
 @media (max-width: 640px) {

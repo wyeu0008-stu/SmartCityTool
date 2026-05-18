@@ -57,12 +57,26 @@ describe('Dev pages', () => {
     expect(wrapper.findAll('.ranking-panel')).toHaveLength(2)
   })
 
-  it('renders only the area filter in the more info dashboard', () => {
+  it('renders dashboard filters without the removed filter chips', () => {
     const wrapper = mount(DevMoreInfoPage)
-    const filterLabels = wrapper.findAll('.dashboard-filters span').map((filter) => filter.text())
+    const filterLabels = wrapper.findAll('.dashboard-filter-form label > span').map((filter) => filter.text())
 
-    expect(filterLabels).toEqual(['Melbourne CBD'])
-    expect(filterLabels).not.toContain('Cycling Infrastructure')
+    expect(filterLabels).toEqual(['Area', 'Destination', 'Parking type'])
     expect(filterLabels).not.toContain('All')
   })
+
+  it('supports interactive dashboard tooltips and destination selection', async () => {
+    const wrapper = mount(DevMoreInfoPage)
+    const destinationButton = wrapper.find('.destination-button')
+    const barWithTooltip = wrapper.find('.bar-row.has-tooltip')
+
+    expect(destinationButton.attributes('data-tooltip')).toContain('trips')
+    expect(barWithTooltip.attributes('data-tooltip')).toContain('km')
+
+    await destinationButton.trigger('click')
+
+    expect(destinationButton.classes()).toContain('active')
+    expect(wrapper.text()).toContain('Selected Destination')
+  })
+
 })

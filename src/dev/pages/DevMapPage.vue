@@ -14,6 +14,7 @@ import {
   releaseRouteProfiles,
   releaseSafeZones
 } from '../../Release/data/releaseMapData'
+import { recordRouteSearch } from '../../services/popularityService'
 
 const route = useRoute()
 const router = useRouter()
@@ -488,7 +489,7 @@ function showNearbyFacilities(type, userCoords) {
     })
 }
 
-function chooseDestination(location) {
+async function chooseDestination(location) {
   if (!isWithinMelbourneCity(location.coords)) {
     showLocationWarning('This destination is outside the supported Melbourne city routing area.')
     return
@@ -502,7 +503,8 @@ function chooseDestination(location) {
   selectedDestinationId.value = location.id
   activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
   showDestinationSuggestions.value = false
-  refreshRoadRoute()
+  await refreshRoadRoute()
+  await recordCurrentRouteSearch()
 }
 
 async function searchDestination() {
@@ -550,6 +552,7 @@ async function searchRoute() {
     activeToggles.value = [...DEFAULT_ACTIVE_TOGGLES]
     showDestinationSuggestions.value = false
     await refreshRoadRoute()
+    await recordCurrentRouteSearch()
   } catch (error) {
     showLocationWarning(error.message || 'Unable to search this route right now')
   }
@@ -688,6 +691,34 @@ function logRouteWarnings(warnings = []) {
     .forEach((warning) => {
       console.warn('[SmartCycle route]', warning)
     })
+}
+
+async function recordCurrentRouteSearch() {
+  if (!destinationQuery.value.trim() || !selectedDestination.value?.coords) {
+    return
+  }
+
+  const [originLat, originLng] = userCurrentCoords.value
+  const [destinationLat, destinationLng] = selectedDestination.value.coords
+
+  try {
+    await recordRouteSearch({
+      origin: {
+        text: originQuery.value.trim() || 'Current Location',
+        lat: originLat,
+        lng: originLng
+      },
+      destination: {
+        text: selectedDestination.value.name || destinationQuery.value.trim(),
+        lat: destinationLat,
+        lng: destinationLng
+      }
+    })
+  } catch (error) {
+    logRouteWarnings([
+      error?.message || 'Unable to record route search popularity.'
+    ])
+  }
 }
 
 function applyBackendRoutes(data, geometryOverride = null) {
