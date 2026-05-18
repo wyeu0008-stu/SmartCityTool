@@ -51,6 +51,7 @@ def compare_routes(
             destination=payload.destination.dict(),
         )
     except SQLAlchemyError as exc:
+        db.rollback()
         raise HTTPException(
             status_code=503,
             detail=(

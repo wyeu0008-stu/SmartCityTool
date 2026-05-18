@@ -11,12 +11,15 @@
       <router-link :to="navBase.insights" active-class="active">Safety Insights</router-link>
       <router-link v-if="navBase.moreInfo" :to="navBase.moreInfo" active-class="active">More Info</router-link>
     </nav>
+
+    <AccessibilityToolbar />
   </header>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import AccessibilityToolbar from './AccessibilityToolbar.vue'
 
 const logoSrc = '/cycling.png'
 const route = useRoute()
