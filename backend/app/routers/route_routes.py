@@ -52,13 +52,18 @@ def compare_routes(
         )
     except SQLAlchemyError as exc:
         db.rollback()
-        raise HTTPException(
-            status_code=503,
-            detail=(
+        return {
+            "origin": payload.origin.dict(),
+            "destination": payload.destination.dict(),
+            "routes": [],
+            "source": "fallback",
+            "model_inference_enabled": False,
+            "model_path": None,
+            "warnings": [
                 "Database route API unavailable. Check SQL Server connectivity "
                 f"and DB_DRIVER. Details: {exc.__class__.__name__}"
-            ),
-        ) from exc
+            ],
+        }
 
 
 @router.get("/{route_id}")

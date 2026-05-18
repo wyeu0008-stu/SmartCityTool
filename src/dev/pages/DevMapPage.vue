@@ -324,6 +324,8 @@ const availableRouteModes = computed(() =>
   releaseRouteModes.filter((mode) => roadRouteOptions.value[mode.id]?.length)
 )
 
+const usingModelRoutes = computed(() => USE_MODEL_ROUTES && Object.values(routeStats.value).some(Boolean))
+
 function hasToggle(toggleKey) {
   return activeToggles.value.includes(toggleKey)
 }
@@ -1647,7 +1649,7 @@ watch(selectedDestinationId, refreshRoadRoute)
               {{ plannerSummary.time }}<template v-if="plannerSummary.distance"> · {{ plannerSummary.distance }}</template>
             </h2>
             <span>
-              Safety score {{ plannerSummary.score }}/10 · {{ selectedDestination?.name }}
+              {{ usingModelRoutes ? 'Model safety score' : 'Fallback safety estimate' }} {{ plannerSummary.score }}/10 · {{ selectedDestination?.name }}
               <template v-if="selectedStops.length"> · {{ selectedStops.length }} stop{{ selectedStops.length === 1 ? '' : 's' }}</template>
             </span>
           </div>
@@ -1712,6 +1714,7 @@ watch(selectedDestinationId, refreshRoadRoute)
           <p class="route-count-note">
             {{ availableRouteCount }} available route option{{ availableRouteCount === 1 ? '' : 's' }}
             <span v-if="availableRouteCount === 1"> · only one route returned by map service</span>
+            <span v-if="!usingModelRoutes"> · model route API disabled or unavailable</span>
           </p>
           <div class="bottom-detail-grid">
             <div class="mini-score">
