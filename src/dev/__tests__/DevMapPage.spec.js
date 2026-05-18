@@ -159,7 +159,7 @@ describe('DevMapPage', () => {
     expect(originInput.element.value).toBe('Docklands')
   })
 
-  it('uses map service fallback without calling backend model routes by default', async () => {
+  it('uses backend model route data and sends route warnings only to console', async () => {
     routeQuery = {
       destination: 'Docklands',
       showRoute: 'true'
@@ -242,19 +242,25 @@ describe('DevMapPage', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(global.fetch).not.toHaveBeenCalledWith(
+    expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/routes/compare'),
-      expect.anything()
+      expect.objectContaining({
+        method: 'POST'
+      })
     )
-    expect(wrapper.text()).toContain('Fallback safety estimate')
+    expect(wrapper.text()).toContain('Model safety score')
     expect(wrapper.text()).toContain('12 mins')
     expect(wrapper.text()).toContain('3.0 km')
-    expect(wrapper.text()).toContain('model route API disabled or unavailable')
+    expect(wrapper.text()).toContain('Model safety score 63.85/100')
     expect(wrapper.text()).not.toContain('do not match city_road_segments_stage')
+    expect(console.warn).toHaveBeenCalledWith(
+      '[SmartCycle route]',
+      'Route 1 has 2 route segment id(s) that do not match city_road_segments_stage.'
+    )
 
     await wrapper.find('.detail-toggle').trigger('click')
 
-    expect(wrapper.text()).toContain('1 available route option')
-    expect(wrapper.text()).toContain('only one route returned by map service')
+    expect(wrapper.text()).toContain('3 available route options')
+    expect(wrapper.text()).toContain('Shortest')
   })
 })
