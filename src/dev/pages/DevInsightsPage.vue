@@ -1,6 +1,7 @@
 <script setup>
 /* c8 ignore file */
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { fetchCyclingTips } from '../../services/tipsService'
 
 const insightCards = [
   {
@@ -20,71 +21,56 @@ const insightCards = [
   }
 ]
 
-const cyclingTips = [
-  {
-    title: 'Start Small',
-    text: 'Even a short ride through Melbourne CBD can help build confidence and improve daily fitness.'
-  },
-  {
-    title: 'Choose Bike Lanes',
-    text: 'Use marked bike lanes where possible to make your journey safer and more comfortable.'
-  },
-  {
-    title: 'Avoid Peak Stress',
-    text: 'Try riding during quieter hours to enjoy a smoother and less stressful trip.'
-  },
-  {
-    title: 'Plan Before You Ride',
-    text: 'Check your route before leaving, especially around busy intersections and tram corridors.'
-  },
-  {
-    title: 'Every Ride Counts',
-    text: 'Each cycling trip helps reduce congestion and supports a cleaner Melbourne CBD.'
-  },
-  {
-    title: 'Ride with Confidence',
-    text: 'Safe cycling is not about speed. It is about awareness, control, and good route choices.'
-  },
-  {
-    title: 'Use Visibility',
-    text: 'Wear visible clothing and use lights when riding in low-light conditions.'
-  },
-  {
-    title: 'Take Breaks',
-    text: 'If the weather feels uncomfortable, pause your trip and continue when conditions improve.'
-  },
-  {
-    title: 'Enjoy the City',
-    text: 'Cycling can turn a normal commute into a more active and enjoyable city experience.'
-  },
-  {
-    title: 'Be Predictable',
-    text: 'Signal early, keep a steady line, and make your movements clear to other road users.'
-  },
-  {
-    title: 'Stay Hydrated',
-    text: 'Bring water for longer city rides, especially during warm afternoons.'
-  },
-  {
-    title: 'Check Your Bike',
-    text: 'A quick tyre and brake check before leaving can make your ride safer.'
-  }
-]
+const today = computed(() => new Date().toLocaleDateString('en-AU', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+}))
 
-const tipStartIndex = ref(new Date().getDate() % cyclingTips.length)
+const cyclingTips = ref([])
+const tipsLoading = ref(false)
+const tipsError = ref('')
+const tipStartIndex = ref(0)
+
+async function loadTips() {
+  tipsLoading.value = true
+  tipsError.value = ''
+
+  try {
+    cyclingTips.value = await fetchCyclingTips()
+    tipStartIndex.value = cyclingTips.value.length
+      ? new Date().getDate() % cyclingTips.value.length
+      : 0
+  } catch (err) {
+    tipsError.value = err.message || 'Failed to load tips'
+  } finally {
+    tipsLoading.value = false
+  }
+}
 
 function getRotatingTips() {
+  if (!cyclingTips.value.length) {
+    return []
+  }
+
   return [0, 1, 2].map((offset) => {
-    const tipIndex = (tipStartIndex.value + offset) % cyclingTips.length
-    return cyclingTips[tipIndex]
+    const tipIndex = (tipStartIndex.value + offset) % cyclingTips.value.length
+    return cyclingTips.value[tipIndex]
   })
 }
 
 const randomTips = computed(() => getRotatingTips())
 
 function refreshTips() {
-  tipStartIndex.value = (tipStartIndex.value + 3) % cyclingTips.length
+  if (!cyclingTips.value.length) {
+    return
+  }
+
+  tipStartIndex.value = (tipStartIndex.value + 3) % cyclingTips.value.length
 }
+
+onMounted(loadTips)
 </script>
 
 <template>
@@ -114,7 +100,10 @@ function refreshTips() {
           </button>
         </div>
 
-        <div class="tips-grid">
+        <p v-if="tipsLoading" class="tips-status">Loading tips...</p>
+        <p v-else-if="tipsError" class="tips-status">{{ tipsError }}</p>
+
+        <div v-else class="tips-grid">
           <article
             v-for="tip in randomTips"
             :key="tip.title"
@@ -253,6 +242,12 @@ h1 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
+}
+
+.tips-status {
+  margin: 0;
+  color: #6e6e73;
+  font-weight: 700;
 }
 
 .tip-card {

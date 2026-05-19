@@ -5,6 +5,7 @@ from app.routers.map_routes import router as map_router
 from app.routers.news_routes import router as news_router
 from app.routers.popularity_routes import router as popularity_router
 from app.routers.route_routes import router as route_router
+from app.routers.tips_routes import router as tips_router
 
 app = FastAPI(title="SmartCycle API")
  
@@ -22,7 +23,7 @@ app.include_router(map_router)
 app.include_router(news_router)
 app.include_router(popularity_router)
 app.include_router(route_router)
-
+app.include_router(tips_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
