@@ -1,15 +1,26 @@
 <script setup>
 /* c8 ignore file */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
 const destination = ref('')
 const showDestinationSuggestions = ref(false)
+const apiDestinationSuggestions = ref([])
+const destinationSuggestionsLoading = ref(false)
 const searchForm = ref(null)
+let destinationSuggestionTimer
+let destinationSuggestionRequestId = 0
 
-const destinationSuggestions = [
+const MELBOURNE_CITY_BOUNDS = {
+  south: -37.855,
+  west: 144.895,
+  north: -37.775,
+  east: 145.015
+}
+
+const localDestinationSuggestions = [
   'Flinders Street Station',
   'State Library Victoria',
   'Melbourne Cricket Ground',
@@ -23,12 +34,30 @@ const destinationSuggestions = [
 const filteredDestinationSuggestions = computed(() => {
   const query = destination.value.trim().toLowerCase()
 
-  if (!query) {
-    return destinationSuggestions.slice(0, 6)
+  if (query.length < 2) {
+    return []
   }
 
-  return destinationSuggestions
+  const localMatches = localDestinationSuggestions
     .filter((item) => item.toLowerCase().includes(query))
+    .map((item) => ({
+      id: `local-${item.toLowerCase().replaceAll(' ', '-')}`,
+      name: item,
+      address: 'Melbourne VIC, Australia'
+    }))
+  const seenNames = new Set()
+
+  return [...apiDestinationSuggestions.value, ...localMatches]
+    .filter((item) => {
+      const nameKey = item.name.toLowerCase()
+
+      if (seenNames.has(nameKey)) {
+        return false
+      }
+
+      seenNames.add(nameKey)
+      return true
+    })
     .slice(0, 6)
 })
 
@@ -54,8 +83,75 @@ const featuredTourismRoutes = computed(() => {
 })
 
 function selectDestinationSuggestion(suggestion) {
-  destination.value = suggestion
+  destination.value = suggestion.name
   showDestinationSuggestions.value = false
+}
+
+function formatSuggestionAddress(result) {
+  const address = result.address || {}
+
+  return [
+    address.road,
+    address.suburb || address.city_district || address.city || address.town,
+    address.state,
+    address.country
+  ].filter(Boolean).join(', ') || result.display_name || 'Melbourne VIC, Australia'
+}
+
+async function fetchDestinationSuggestions(rawQuery) {
+  const query = rawQuery.trim()
+
+  if (query.length < 2) {
+    apiDestinationSuggestions.value = []
+    destinationSuggestionsLoading.value = false
+    return
+  }
+
+  const requestId = ++destinationSuggestionRequestId
+  const viewbox = [
+    MELBOURNE_CITY_BOUNDS.west,
+    MELBOURNE_CITY_BOUNDS.north,
+    MELBOURNE_CITY_BOUNDS.east,
+    MELBOURNE_CITY_BOUNDS.south
+  ].join(',')
+
+  destinationSuggestionsLoading.value = true
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&bounded=1&viewbox=${viewbox}&countrycodes=au&q=${encodeURIComponent(query)}`
+    )
+    const results = await response.json()
+
+    if (requestId !== destinationSuggestionRequestId) {
+      return
+    }
+
+    apiDestinationSuggestions.value = (Array.isArray(results) ? results : [])
+      .map((result, index) => {
+        const lat = Number(result.lat)
+        const lng = Number(result.lon)
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return null
+        }
+
+        return {
+          id: `api-destination-${result.place_id || index}`,
+          name: result.name || result.display_name?.split(',')[0] || query,
+          address: formatSuggestionAddress(result)
+        }
+      })
+      .filter(Boolean)
+  } catch (error) {
+    if (requestId === destinationSuggestionRequestId) {
+      apiDestinationSuggestions.value = []
+    }
+  } finally {
+    if (requestId === destinationSuggestionRequestId) {
+      destinationSuggestionsLoading.value = false
+    }
+  }
 }
 
 function openMap(target = '') {
@@ -87,7 +183,20 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(destinationSuggestionTimer)
   document.removeEventListener('click', closeSuggestionsOnOutsideClick)
+})
+
+watch(destination, (query) => {
+  window.clearTimeout(destinationSuggestionTimer)
+
+  if (!showDestinationSuggestions.value) {
+    return
+  }
+
+  destinationSuggestionTimer = window.setTimeout(() => {
+    fetchDestinationSuggestions(query)
+  }, 220)
 })
 </script>
 
@@ -120,14 +229,21 @@ onBeforeUnmount(() => {
           <div v-if="showDestinationSuggestions && filteredDestinationSuggestions.length" class="home-suggestion-list">
             <button
               v-for="suggestion in filteredDestinationSuggestions"
-              :key="suggestion"
+              :key="suggestion.id"
               type="button"
               class="home-suggestion-option"
               @click="selectDestinationSuggestion(suggestion)"
             >
-              <span class="history-icon">↻</span>
-              <span>{{ suggestion }}</span>
+              <span class="history-icon">⌖</span>
+              <span class="suggestion-copy">
+                <strong>{{ suggestion.name }}</strong>
+                <small v-if="suggestion.address">{{ suggestion.address }}</small>
+              </span>
             </button>
+          </div>
+
+          <div v-else-if="showDestinationSuggestions && destinationSuggestionsLoading" class="home-suggestion-list">
+            <div class="suggestion-status">Searching destinations...</div>
           </div>
         </div>
 
@@ -290,14 +406,47 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 46px;
-  padding: 0 16px;
+  min-height: 58px;
+  padding: 8px 16px;
   border: 0;
   background: transparent;
   color: #424245;
   text-align: left;
   cursor: pointer;
   font-size: 1rem;
+  font-weight: 700;
+}
+
+.suggestion-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.suggestion-copy strong,
+.suggestion-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-copy strong {
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.suggestion-copy small {
+  color: #6e6e73;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.suggestion-status {
+  padding: 14px 18px;
+  color: #6e6e73;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 

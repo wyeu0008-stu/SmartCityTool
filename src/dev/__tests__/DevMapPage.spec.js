@@ -140,23 +140,87 @@ describe('DevMapPage', () => {
     expect(wrapper.text()).toContain('Protected-lane preference')
   })
 
-  it('shows start point suggestions and selects an origin', async () => {
+  it('uses API-backed start and destination suggestions', async () => {
+    global.fetch = vi.fn((url) => {
+      const requestUrl = String(url)
+
+      if (requestUrl.includes('bike_line.geojson')) {
+        return mockFetchResponse({ features: [] })
+      }
+
+      if (requestUrl.includes('nominatim.openstreetmap.org/search')) {
+        return mockFetchResponse([
+          {
+            place_id: 123,
+            name: 'Melbourne Central',
+            display_name: 'Melbourne Central, Melbourne VIC, Australia',
+            lat: '-37.8102',
+            lon: '144.9628',
+            address: {
+              city: 'Melbourne',
+              state: 'Victoria',
+              country: 'Australia'
+            }
+          }
+        ])
+      }
+
+      if (requestUrl.includes('router.project-osrm.org')) {
+        return mockFetchResponse({
+          routes: [
+            {
+              distance: 2100,
+              duration: 720,
+              geometry: {
+                coordinates: [[144.9631, -37.8136], [144.9628, -37.8102]]
+              }
+            }
+          ]
+        })
+      }
+
+      return mockFetchResponse({ features: [], routes: [] })
+    })
+
     const wrapper = mount(DevMapPage)
     await flushPromises()
 
     const originInput = wrapper.find('input[placeholder="Start point"]')
-    await originInput.trigger('focus')
-    await originInput.setValue('Docklands')
+    expect(originInput.exists()).toBe(true)
 
-    const docklandsButton = wrapper.findAll('.suggestion-list .suggestion-option').find((button) =>
-      button.text().includes('Docklands')
+    await originInput.trigger('focus')
+    await originInput.setValue('mel')
+    await new Promise((resolve) => window.setTimeout(resolve, 260))
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('bounded=1'))
+
+    const originButton = wrapper.findAll('.suggestion-list .suggestion-option').find((button) =>
+      button.text().includes('Melbourne Central')
     )
 
-    expect(docklandsButton).toBeTruthy()
+    expect(originButton).toBeTruthy()
 
-    await docklandsButton.trigger('click')
+    await originButton.trigger('click')
 
-    expect(originInput.element.value).toBe('Docklands')
+    expect(originInput.element.value).toBe('Melbourne Central')
+
+    const destinationInput = wrapper.find('input[placeholder="Destination"]')
+    await destinationInput.trigger('focus')
+    await destinationInput.setValue('mel')
+    await new Promise((resolve) => window.setTimeout(resolve, 260))
+    await flushPromises()
+
+    const melbourneCentralButton = wrapper.findAll('.suggestion-list .suggestion-option').find((button) =>
+      button.text().includes('Melbourne Central')
+    )
+
+    expect(melbourneCentralButton).toBeTruthy()
+    expect(melbourneCentralButton.text()).toContain('Victoria')
+
+    await melbourneCentralButton.trigger('click')
+
+    expect(destinationInput.element.value).toBe('Melbourne Central')
   })
 
   it('uses backend model route data and sends route warnings only to console', async () => {
