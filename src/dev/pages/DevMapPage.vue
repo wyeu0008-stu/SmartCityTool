@@ -40,7 +40,7 @@ function goToDevInsights() {
   router.push('/dev/safety-insights')
 }
 const activeMode = ref('safest')
-const originQuery = ref('Current Location')
+const originQuery = ref('')
 const destinationQuery = ref('')
 const selectedDestinationId = ref('')
 const customDestination = ref(null)
@@ -62,7 +62,15 @@ const showLayerControls = ref(false)
 const showRouteDetails = ref(false)
 const showOriginSuggestions = ref(false)
 const showDestinationSuggestions = ref(false)
+const apiOriginSuggestions = ref([])
+const apiDestinationSuggestions = ref([])
+const originSuggestionsLoading = ref(false)
+const destinationSuggestionsLoading = ref(false)
 const navigationStarted = ref(false)
+let originSuggestionTimer
+let destinationSuggestionTimer
+let originSuggestionRequestId = 0
+let destinationSuggestionRequestId = 0
 const routeVisuals = {
   safest: {
     color: '#34c759',
@@ -80,6 +88,8 @@ const routeVisuals = {
     label: 'Shortest'
   }
 }
+const STOP_ROUTE_COLOR = '#ff3b30'
+const STOP_ROUTE_HALO = '#ffffff'
 const mapToggles = computed(() => [
   { key: 'safeRoutes', label: 'Show Route', color: '#45a875' },
   { key: 'bikeLanes', label: 'Show Dedicated Bike Lanes', color: '#00c7be' },
@@ -175,15 +185,6 @@ const destinationOptions = computed(() =>
   )
 )
 
-const popularOriginSuggestions = [
-  { id: 'origin-lakeside-trail', name: 'Lakeside Trail', coords: [-37.8112, 144.9678] },
-  { id: 'origin-docklands', name: 'Docklands', coords: [-37.8152, 144.9483] },
-  { id: 'origin-state-library', name: 'State Library Victoria', coords: [-37.8098, 144.9652] },
-  { id: 'origin-mcg', name: 'Melbourne Cricket Ground', coords: [-37.8199, 144.9834] },
-  { id: 'origin-carlton-gardens', name: 'Carlton Gardens', coords: [-37.8063, 144.9717] },
-  { id: 'origin-flagstaff-station', name: 'Flagstaff Station', coords: [-37.8119, 144.9557] }
-]
-
 const popularDestinationSuggestions = [
   { id: 'suggest-state-library', name: 'State Library Victoria', coords: [-37.8098, 144.9652] },
   { id: 'suggest-mcg', name: 'Melbourne Cricket Ground', coords: [-37.8199, 144.9834] },
@@ -211,44 +212,40 @@ const destinationSuggestionPool = computed(() => {
   })
 })
 
-const originSuggestionPool = computed(() => {
-  const mergedLocations = [currentLocation, ...popularOriginSuggestions, ...destinationOptions.value]
+const filteredDestinations = computed(() => {
+  const query = destinationQuery.value.trim().toLowerCase()
+  const apiMatches = apiDestinationSuggestions.value
+
+  if (query.length < 2) {
+    return []
+  }
+
+  const localMatches = destinationSuggestionPool.value
+    .filter((location) => location.name.toLowerCase().includes(query))
   const seenNames = new Set()
 
-  return mergedLocations.filter((location) => {
-    const nameKey = location.name.toLowerCase()
+  return [...apiMatches, ...localMatches]
+    .filter((location) => {
+      const nameKey = location.name.toLowerCase()
 
-    if (seenNames.has(nameKey)) {
-      return false
-    }
+      if (seenNames.has(nameKey)) {
+        return false
+      }
 
-    seenNames.add(nameKey)
-    return true
-  })
+      seenNames.add(nameKey)
+      return true
+    })
+    .slice(0, 6)
 })
 
 const filteredOrigins = computed(() => {
   const query = originQuery.value.trim().toLowerCase()
 
-  if (!query || query === 'current location') {
-    return originSuggestionPool.value.slice(0, 6)
+  if (query.length < 2) {
+    return []
   }
 
-  return originSuggestionPool.value
-    .filter((location) => location.name.toLowerCase().includes(query))
-    .slice(0, 6)
-})
-
-const filteredDestinations = computed(() => {
-  const query = destinationQuery.value.trim().toLowerCase()
-
-  if (!query) {
-    return destinationSuggestionPool.value.slice(0, 6)
-  }
-
-  return destinationSuggestionPool.value
-    .filter((location) => location.name.toLowerCase().includes(query))
-    .slice(0, 6)
+  return apiOriginSuggestions.value.slice(0, 6)
 })
 
 const selectedDestination = computed(() => {
@@ -309,6 +306,8 @@ const routePathToDraw = computed(() => {
   const activeRoute = roadRouteOptions.value[activeMode.value]
   return activeRoute?.length ? activeRoute : displayRoutePath.value
 })
+
+const activeRouteSegments = computed(() => splitRoutePathByStops(routePathToDraw.value))
 
 const availableRouteCount = computed(() => {
   const uniqueRoutes = new Set(
@@ -400,21 +399,6 @@ function clearLocationWarning() {
   locationWarning.value = ''
 }
 
-async function chooseOrigin(location) {
-  if (!isWithinMelbourneCity(location.coords)) {
-    showLocationWarning('This start point is outside the supported Melbourne city routing area.')
-    return
-  }
-
-  clearLocationWarning()
-  originQuery.value = location.name
-  userCurrentCoords.value = location.coords
-  isUsingRealLocation.value = location.id === 'current'
-  navigationStarted.value = false
-  showOriginSuggestions.value = false
-  await refreshRoadRoute()
-}
-
 async function geocodeMelbournePlace(rawQuery) {
   const searchText = `${rawQuery}, Melbourne, Australia`
   const viewbox = [
@@ -424,10 +408,10 @@ async function geocodeMelbournePlace(rawQuery) {
     MELBOURNE_CITY_BOUNDS.south
   ].join(',')
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&limit=1&viewbox=${viewbox}&q=${encodeURIComponent(searchText)}`
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&bounded=1&viewbox=${viewbox}&q=${encodeURIComponent(searchText)}`
   )
   const results = await response.json()
-  const firstResult = results[0]
+  const firstResult = Array.isArray(results) ? results[0] : null
 
   if (!firstResult) {
     return null
@@ -437,6 +421,102 @@ async function geocodeMelbournePlace(rawQuery) {
     name: firstResult.display_name?.split(',')[0] || rawQuery,
     coords: [Number(firstResult.lat), Number(firstResult.lon)]
   }
+}
+
+function formatSuggestionAddress(result) {
+  const address = result.address || {}
+
+  return [
+    address.road,
+    address.suburb || address.city_district || address.city || address.town,
+    address.state,
+    address.country
+  ].filter(Boolean).join(', ') || result.display_name || 'Melbourne VIC, Australia'
+}
+
+async function fetchPlaceSuggestions(rawQuery, options) {
+  const query = rawQuery.trim()
+  const {
+    setSuggestions,
+    setLoading,
+    getRequestId,
+    setRequestId,
+    idPrefix
+  } = options
+
+  if (query.length < 2) {
+    setSuggestions([])
+    setLoading(false)
+    return
+  }
+
+  const requestId = getRequestId() + 1
+  setRequestId(requestId)
+  const viewbox = [
+    MELBOURNE_CITY_BOUNDS.west,
+    MELBOURNE_CITY_BOUNDS.north,
+    MELBOURNE_CITY_BOUNDS.east,
+    MELBOURNE_CITY_BOUNDS.south
+  ].join(',')
+
+  setLoading(true)
+
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&bounded=1&viewbox=${viewbox}&countrycodes=au&q=${encodeURIComponent(query)}`
+    )
+    const results = await response.json()
+
+    if (requestId !== getRequestId()) {
+      return
+    }
+
+    setSuggestions((Array.isArray(results) ? results : [])
+      .map((result, index) => {
+        const lat = Number(result.lat)
+        const lng = Number(result.lon)
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return null
+        }
+
+        return {
+          id: `${idPrefix}-${result.place_id || index}`,
+          name: result.name || result.display_name?.split(',')[0] || query,
+          address: formatSuggestionAddress(result),
+          coords: [lat, lng]
+        }
+      })
+      .filter(Boolean))
+  } catch (error) {
+    if (requestId === getRequestId()) {
+      setSuggestions([])
+    }
+  } finally {
+    if (requestId === getRequestId()) {
+      setLoading(false)
+    }
+  }
+}
+
+function fetchOriginSuggestions(rawQuery) {
+  return fetchPlaceSuggestions(rawQuery, {
+    setSuggestions: (suggestions) => { apiOriginSuggestions.value = suggestions },
+    setLoading: (loading) => { originSuggestionsLoading.value = loading },
+    getRequestId: () => originSuggestionRequestId,
+    setRequestId: (requestId) => { originSuggestionRequestId = requestId },
+    idPrefix: 'api-origin'
+  })
+}
+
+function fetchDestinationSuggestions(rawQuery) {
+  return fetchPlaceSuggestions(rawQuery, {
+    setSuggestions: (suggestions) => { apiDestinationSuggestions.value = suggestions },
+    setLoading: (loading) => { destinationSuggestionsLoading.value = loading },
+    getRequestId: () => destinationSuggestionRequestId,
+    setRequestId: (requestId) => { destinationSuggestionRequestId = requestId },
+    idPrefix: 'api-destination'
+  })
 }
 
 async function resolveOriginInput() {
@@ -469,6 +549,21 @@ async function resolveOriginInput() {
   originQuery.value = resolvedOrigin.name
   userCurrentCoords.value = resolvedOrigin.coords
   isUsingRealLocation.value = false
+}
+
+async function chooseOrigin(location) {
+  if (!isWithinMelbourneCity(location.coords)) {
+    showLocationWarning('This start point is outside the supported Melbourne city routing area.')
+    return
+  }
+
+  clearLocationWarning()
+  originQuery.value = location.name
+  userCurrentCoords.value = location.coords
+  isUsingRealLocation.value = false
+  navigationStarted.value = false
+  showOriginSuggestions.value = false
+  await refreshRoadRoute()
 }
 
 function showNearbyFacilities(type, userCoords) {
@@ -551,7 +646,12 @@ async function chooseDestination(location) {
   }
 
   clearLocationWarning()
-  customDestination.value = null
+  const knownDestination = destinationOptions.value.some((item) => item.id === location.id)
+  customDestination.value = knownDestination ? null : {
+    id: location.id,
+    name: location.name,
+    coords: location.coords
+  }
   selectedStops.value = []
   navigationStarted.value = false
   destinationQuery.value = location.name
@@ -734,6 +834,52 @@ function getRouteColor(routeType) {
   return routeVisuals[routeType]?.color || '#007aff'
 }
 
+function getClosestPathIndex(path, targetCoords, startIndex = 0) {
+  let closestIndex = Math.max(0, startIndex)
+  let closestDistance = Number.POSITIVE_INFINITY
+
+  path.forEach((point, index) => {
+    if (index < startIndex) {
+      return
+    }
+
+    const distance = getDistanceInKm(point[0], point[1], targetCoords[0], targetCoords[1])
+
+    if (distance < closestDistance) {
+      closestDistance = distance
+      closestIndex = index
+    }
+  })
+
+  return closestIndex
+}
+
+function splitRoutePathByStops(path) {
+  if (!path?.length || !selectedStops.value.length) {
+    return {
+      stopSegments: [],
+      destinationSegment: path || []
+    }
+  }
+
+  const stopSegments = []
+  let segmentStartIndex = 0
+
+  selectedStops.value.forEach((stop) => {
+    const stopIndex = getClosestPathIndex(path, stop.coords, segmentStartIndex)
+
+    if (stopIndex > segmentStartIndex) {
+      stopSegments.push(path.slice(segmentStartIndex, stopIndex + 1))
+      segmentStartIndex = stopIndex
+    }
+  })
+
+  return {
+    stopSegments,
+    destinationSegment: path.slice(segmentStartIndex)
+  }
+}
+
 function toLeafletPath(pathCoordinates = []) {
   return pathCoordinates
     .filter((point) => Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng)))
@@ -837,7 +983,7 @@ async function loadModelRoadRoute() {
     },
     body: JSON.stringify({
       origin: {
-        text: isUsingRealLocation.value ? 'Current location' : currentLocation.name,
+        text: originQuery.value.trim() || (isUsingRealLocation.value ? 'Current location' : currentLocation.name),
         lat: startLat,
         lng: startLng
       },
@@ -1252,7 +1398,6 @@ function focusCurrentLocation() {
     }
 
     clearLocationWarning()
-    originQuery.value = 'Current Location'
     userCurrentCoords.value = userCoords
     isUsingRealLocation.value = true
 
@@ -1367,8 +1512,7 @@ function buildRouteLayer() {
       ])
     )
 
-  routeLayer = L.layerGroup([
-    ...alternativeLayers,
+  const activeSegmentLayers = [
     L.polyline(routePathToDraw.value, {
       color: activeRouteVisual.value.halo,
       weight: 12,
@@ -1376,13 +1520,36 @@ function buildRouteLayer() {
       lineCap: 'round',
       lineJoin: 'round'
     }),
-    L.polyline(routePathToDraw.value, {
+    ...activeRouteSegments.value.stopSegments.map((segment) =>
+      L.polyline(segment, {
+        color: STOP_ROUTE_HALO,
+        weight: 12,
+        opacity: 0.88,
+        lineCap: 'round',
+        lineJoin: 'round'
+      })
+    ),
+    L.polyline(activeRouteSegments.value.destinationSegment, {
       color: activeRouteVisual.value.color,
       weight: 7,
       opacity: 0.95,
       lineCap: 'round',
       lineJoin: 'round'
-    })
+    }),
+    ...activeRouteSegments.value.stopSegments.map((segment) =>
+      L.polyline(segment, {
+        color: STOP_ROUTE_COLOR,
+        weight: 7,
+        opacity: 0.96,
+        lineCap: 'round',
+        lineJoin: 'round'
+      })
+    )
+  ]
+
+  routeLayer = L.layerGroup([
+    ...alternativeLayers,
+    ...activeSegmentLayers
   ])
 
   if (hasToggle('safeRoutes')) {
@@ -1541,6 +1708,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.clearTimeout(originSuggestionTimer)
+  window.clearTimeout(destinationSuggestionTimer)
+
   if (map) {
     map.remove()
   }
@@ -1549,6 +1719,28 @@ onBeforeUnmount(() => {
 watch(activeMode, updateMapScene)
 watch(activeToggles, updateMapScene, { deep: true })
 watch(selectedDestinationId, refreshRoadRoute)
+watch(originQuery, (query) => {
+  window.clearTimeout(originSuggestionTimer)
+
+  if (!showOriginSuggestions.value) {
+    return
+  }
+
+  originSuggestionTimer = window.setTimeout(() => {
+    fetchOriginSuggestions(query)
+  }, 220)
+})
+watch(destinationQuery, (query) => {
+  window.clearTimeout(destinationSuggestionTimer)
+
+  if (!showDestinationSuggestions.value) {
+    return
+  }
+
+  destinationSuggestionTimer = window.setTimeout(() => {
+    fetchDestinationSuggestions(query)
+  }, 220)
+})
 </script>
 
 <template>
@@ -1557,9 +1749,8 @@ watch(selectedDestinationId, refreshRoadRoute)
       <div ref="mapContainer" class="map-canvas"></div>
 
       <aside class="search-panel">
-
         <label class="search-field">
-          <span>A</span>
+          <span>🔍</span>
           <input
             v-model="originQuery"
             type="text"
@@ -1590,18 +1781,25 @@ watch(selectedDestinationId, refreshRoadRoute)
           {{ locationWarning }}
         </p>
 
-        <div v-if="showOriginSuggestions && filteredOrigins.length" class="suggestion-list">
+        <div v-if="showOriginSuggestions && filteredOrigins.length" class="suggestion-list origin-list">
           <button
             v-for="location in filteredOrigins"
             :key="location.id"
             type="button"
-            class="suggestion-option"
+            class="suggestion-option origin-option"
             :class="{ active: originQuery === location.name }"
             @click="chooseOrigin(location)"
           >
             <span class="suggestion-icon">⌖</span>
-            <span>{{ location.name }}</span>
+            <span class="suggestion-copy">
+              <strong>{{ location.name }}</strong>
+              <small v-if="location.address">{{ location.address }}</small>
+            </span>
           </button>
+        </div>
+
+        <div v-else-if="showOriginSuggestions && originSuggestionsLoading" class="suggestion-list origin-list">
+          <div class="suggestion-status">Searching start points...</div>
         </div>
 
         <div v-if="showDestinationSuggestions && filteredDestinations.length" class="suggestion-list destination-list">
@@ -1613,9 +1811,16 @@ watch(selectedDestinationId, refreshRoadRoute)
             :class="{ active: selectedDestinationId === location.id }"
             @click="chooseDestination(location)"
           >
-            <span class="suggestion-icon">↻</span>
-            <span>{{ location.name }}</span>
+            <span class="suggestion-icon">⌖</span>
+            <span class="suggestion-copy">
+              <strong>{{ location.name }}</strong>
+              <small v-if="location.address">{{ location.address }}</small>
+            </span>
           </button>
+        </div>
+
+        <div v-else-if="showDestinationSuggestions && destinationSuggestionsLoading" class="suggestion-list destination-list">
+          <div class="suggestion-status">Searching destinations...</div>
         </div>
 
         <button type="button" class="layer-toggle-button" @click="showLayerControls = !showLayerControls">
@@ -2006,7 +2211,8 @@ watch(selectedDestinationId, refreshRoadRoute)
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: 52px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -2014,6 +2220,42 @@ watch(selectedDestinationId, refreshRoadRoute)
   text-align: left;
   cursor: pointer;
   font-size: 0.92rem;
+}
+
+.suggestion-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.suggestion-copy strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.94rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-copy small {
+  overflow: hidden;
+  color: #6e6e73;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-option.active .suggestion-copy small,
+.destination-option.active .suggestion-copy small {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.suggestion-status {
+  padding: 14px 16px;
+  color: #6e6e73;
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .suggestion-option:hover,
