@@ -1074,10 +1074,10 @@ td strong {
   gap: 14px;
   min-height: 270px;
   margin-top: 22px;
-  padding-top: 24px;
+  padding-top: 44px;
   border-bottom: 2px solid rgba(60, 60, 67, 0.12);
   background:
-    linear-gradient(rgba(60, 60, 67, 0.08) 1px, transparent 1px) 0 18px / 100% 52px;
+    linear-gradient(rgba(60, 60, 67, 0.08) 1px, transparent 1px) 0 44px / 100% 52px;
 }
 
 .parking-bar {
@@ -1095,16 +1095,24 @@ td strong {
 }
 
 .parking-bar strong {
+  position: relative;
+  z-index: 1;
   align-self: end;
+  justify-self: center;
+  min-width: 44px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
   color: #1d1d1f;
   font-size: 0.95rem;
+  line-height: 1.25;
 }
 
 .parking-bar span {
   display: block;
   width: min(100%, 52px);
   min-height: 8px;
-  margin: 6px auto 8px;
+  margin: 10px auto 8px;
   border-radius: 4px 4px 0 0;
   transform: scaleY(0);
   transform-origin: bottom;

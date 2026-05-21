@@ -2465,6 +2465,9 @@ watch(destinationQuery, (query) => {
   bottom: 24px;
   width: 520px;
   max-width: calc(100% - 48px);
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
 }
 
@@ -2762,6 +2765,7 @@ watch(destinationQuery, (query) => {
 
   .bottom-route-card {
     bottom: 16px;
+    max-height: calc(100% - 32px);
   }
 }
 
@@ -2803,6 +2807,7 @@ watch(destinationQuery, (query) => {
     right: 12px;
     bottom: 12px;
     width: auto;
+    max-height: calc(100% - 24px);
     padding: 14px;
     border-radius: 24px;
   }
